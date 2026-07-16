@@ -16,7 +16,7 @@ export interface LibraryImage {
   name: string
 }
 
-export type ViewMode = 'grid' | 'canvas' | 'infinity'
+export type ViewMode = 'grid' | 'canvas'
 
 export interface LibraryState {
   activeFolder: FolderId
