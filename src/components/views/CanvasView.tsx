@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -17,7 +17,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, Undo2 } from 'lucide-react'
 import { useLibrary, LibraryImage } from '../../store/LibraryContext'
 
 interface Cluster {
@@ -101,7 +101,14 @@ function ClusterGroup({
 export function CanvasView() {
   const { filteredImages, reorderImages, zoomToImage, state } = useLibrary()
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [historySize, setHistorySize] = useState(0)
   const dragStarted = useRef(false)
+  const historyRef = useRef<string[][]>([])
+
+  useEffect(() => {
+    historyRef.current = []
+    setHistorySize(0)
+  }, [state.activeFolder])
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -145,6 +152,18 @@ export function CanvasView() {
     setActiveId(String(event.active.id))
   }
 
+  const pushHistory = useCallback((order: string[]) => {
+    historyRef.current = [...historyRef.current.slice(-19), order]
+    setHistorySize(historyRef.current.length)
+  }, [])
+
+  const undoLayout = useCallback(() => {
+    const previousOrder = historyRef.current.pop()
+    if (!previousOrder) return
+    setHistorySize(historyRef.current.length)
+    reorderImages(state.activeFolder, previousOrder)
+  }, [reorderImages, state.activeFolder])
+
   const releaseDragLock = () => {
     setTimeout(() => {
       dragStarted.current = false
@@ -181,6 +200,7 @@ export function CanvasView() {
 
     const reorderedClusterIds = arrayMove(clusterIds, oldIndex, newIndex)
     const nextOrder = filteredImages.map((image) => image.id)
+    pushHistory([...nextOrder])
     nextOrder.splice(cluster.startIndex, reorderedClusterIds.length, ...reorderedClusterIds)
 
     reorderImages(state.activeFolder, nextOrder)
@@ -197,7 +217,7 @@ export function CanvasView() {
   }
 
   return (
-    <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden bg-[#f5f5f7] p-6">
+    <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden bg-[#f5f5f7] p-6 relative">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -232,6 +252,22 @@ export function CanvasView() {
           ) : null}
         </DragOverlay>
       </DndContext>
+      <button
+        type="button"
+        onClick={undoLayout}
+        disabled={historySize === 0}
+        title="Undo"
+        className="fixed bottom-5 right-5 z-50 p-2 rounded-[8px] transition-all hover:scale-110 disabled:hover:scale-100"
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.85)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          color: historySize === 0 ? '#c7c7cc' : '#6e6e93',
+          cursor: historySize === 0 ? 'default' : 'pointer',
+          opacity: historySize === 0 ? 0.55 : 1,
+        }}
+      >
+        <Undo2 size={14} />
+      </button>
     </div>
   )
 }
