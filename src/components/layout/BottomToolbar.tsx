@@ -1,11 +1,10 @@
 import React from 'react'
-import { LayoutGrid, GripHorizontal, Infinity } from 'lucide-react'
+import { LayoutGrid, GripHorizontal } from 'lucide-react'
 import { useLibrary, ViewMode } from '../../store/LibraryContext'
 
 const modes: { id: ViewMode; label: string; icon: React.ElementType }[] = [
   { id: 'grid', label: 'Grid', icon: LayoutGrid },
   { id: 'canvas', label: 'Canvas', icon: GripHorizontal },
-  { id: 'infinity', label: 'Infinity', icon: Infinity },
 ]
 
 export function BottomToolbar() {
