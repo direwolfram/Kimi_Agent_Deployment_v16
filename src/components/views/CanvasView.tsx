@@ -9,7 +9,6 @@ import {
   DragOverlay,
   DragStartEvent,
   DragCancelEvent,
-  useDroppable,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -79,18 +78,8 @@ function ClusterGroup({
   cluster: Cluster
   onZoom: (image: LibraryImage) => void
 }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: cluster.id,
-    data: { clusterId: cluster.id },
-  })
-
   return (
-    <div
-      ref={setNodeRef}
-      className={`bg-white/60 rounded-xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border transition-colors ${
-        isOver ? 'border-[#007aff]/30 bg-white/80' : 'border-white/50'
-      }`}
-    >
+    <div className="bg-white/60 rounded-xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-white/50">
       <div className="text-xs font-semibold text-[#8e8e93] mb-2 px-1">{cluster.name}</div>
       <SortableContext items={cluster.items.map((i) => i.id)} strategy={rectSortingStrategy}>
         <div

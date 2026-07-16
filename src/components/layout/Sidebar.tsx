@@ -60,7 +60,7 @@ export function Sidebar() {
                     className="flex-1 text-sm font-medium"
                     style={{ color: active ? '#007aff' : '#1c1c1e' }}
                   >
-                    {folder.name}
+                    {folder.id === 'all' ? `${folder.name} v${packageJson.version}` : folder.name}
                   </span>
                   <span
                     className="text-xs font-medium"
