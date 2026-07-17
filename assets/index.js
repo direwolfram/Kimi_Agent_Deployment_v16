@@ -7528,7 +7528,7 @@ var yv = gv(), vv = [{ id: "all", name: "All", children: [], modificationTime: D
 function wv(a14, o) {
   switch (o.type) {
     case "SET_IMAGES":
-      return { ...a14, images: o.payload };
+      return { ...a14, images: AURA_sortByImportDate(o.payload, a14.importSortDirection) };
     case "SET_FOLDERS":
       return { ...a14, folders: o.payload };
     case "SET_ACTIVE_FOLDER":
@@ -7573,10 +7573,12 @@ function AURA_normalizeEagleFolders(a14) {
   if (!o.length) return [];
   let l = /* @__PURE__ */ new Map(), i = [];
   return o.forEach((c) => {
-    let f = { id: c.id, name: c.name || c.newFolderName || "Untitled", description: c.description || "", children: Array.isArray(c.children) ? AURA_normalizeEagleFolders(c.children) : [], modificationTime: c.modificationTime || c.modifiedAt || c.createdAt || Date.now(), tags: c.tags || [], iconColor: c.iconColor || c.color || "blue" };
+    typeof c == "string" && (c = { id: c, name: c.split(/[\\/:]/).filter(Boolean).pop() || c });
+    let f = { id: c.id || c.folderId || c.uuid || c.name, name: c.name || c.title || c.folderName || c.newFolderName || c.id || "Untitled", description: c.description || "", children: Array.isArray(c.children) ? AURA_normalizeEagleFolders(c.children) : [], modificationTime: c.modificationTime || c.modifiedAt || c.createdAt || Date.now(), tags: c.tags || [], iconColor: c.iconColor || c.color || "blue" };
     l.set(f.id, f);
   }), o.forEach((c) => {
-    let f = l.get(c.id), h = c.parent || c.parentId;
+    typeof c == "string" && (c = { id: c });
+    let f = l.get(c.id || c.folderId || c.uuid || c.name), h = c.parent || c.parentId;
     h && l.has(h) ? l.get(h).children.push(f) : f && i.push(f);
   }), i;
 }
@@ -7637,6 +7639,10 @@ function AURA_importedAt(a14) {
   let o = a14?.importedAt || a14?.importDate || a14?.dateImported || a14?.dateAdded || a14?.createdAt || a14?.createTime || a14?.btime || a14?.mtime || a14?.modificationTime || a14?.updatedAt;
   if (o == null || o === "") return "";
   if (typeof o == "number") return new Date(o < 1e12 ? o * 1e3 : o).toISOString();
+  if (typeof o == "string" && /^\d+$/.test(o.trim())) {
+    let i = Number(o);
+    return new Date(i < 1e12 ? i * 1e3 : i).toISOString();
+  }
   let l = new Date(o).getTime();
   return Number.isFinite(l) ? new Date(l).toISOString() : String(o);
 }
@@ -7689,6 +7695,115 @@ function AURA_clearCanvasSnapshot(a14) {
     localStorage.removeItem(a14);
   } catch {
   }
+}
+var AURA_EAGLE_CACHE_KEY = "aura:eagle-library-cache:v1";
+var AURA_EAGLE_REGISTRY_KEY = "aura:eagle-library-registry:v1";
+function AURA_eagleLibraryId(a14) {
+  let o = String(a14?.id || a14?.libraryId || a14?.libraryPath || a14?.path || a14?.folderPath || a14?.libraryName || a14?.name || "Eagle Library");
+  let l = 2166136261;
+  for (let i = 0; i < o.length; i++) l ^= o.charCodeAt(i), l = Math.imul(l, 16777619);
+  return `eagle-${(l >>> 0).toString(36)}`;
+}
+function AURA_eagleLibrarySummary(a14) {
+  return { id: a14.id || AURA_eagleLibraryId(a14), source: a14.source || "file", status: a14.status || "connected-file", libraryName: a14.libraryName || "Eagle Library", libraryPath: a14.libraryPath || "", savedAt: a14.savedAt || Date.now() };
+}
+function AURA_loadEagleRegistry() {
+  try {
+    let a14 = localStorage.getItem(AURA_EAGLE_REGISTRY_KEY);
+    if (a14) {
+      let o = JSON.parse(a14);
+      if (Array.isArray(o?.libraries)) return { activeId: o.activeId || o.defaultId || o.libraries[0]?.id || "", defaultId: o.defaultId || "", libraries: o.libraries };
+    }
+    let o = localStorage.getItem(AURA_EAGLE_CACHE_KEY);
+    if (!o) return null;
+    let l = JSON.parse(o), i = Array.isArray(l?.libraries) ? l.libraries : Array.isArray(l?.folders) && Array.isArray(l?.images) ? [{ id: AURA_eagleLibraryId(l), ...l }] : [];
+    if (!i.length) return null;
+    let c = { activeId: l.activeId || l.defaultId || i[0].id, defaultId: l.defaultId || "", libraries: i.map(AURA_eagleLibrarySummary) };
+    return AURA_saveEagleRegistry(c), c;
+  } catch {
+    return null;
+  }
+}
+function AURA_saveEagleRegistry(a14) {
+  try {
+    localStorage.setItem(AURA_EAGLE_REGISTRY_KEY, JSON.stringify(a14));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function AURA_loadEagleCache() {
+  try {
+    let a14 = AURA_loadEagleRegistry();
+    if (a14) return a14;
+    let o = localStorage.getItem(AURA_EAGLE_CACHE_KEY);
+    if (!o) return null;
+    o = JSON.parse(o);
+    if (Array.isArray(o?.libraries)) return { activeId: o.activeId || o.defaultId || o.libraries[0]?.id || "", defaultId: o.defaultId || "", libraries: o.libraries };
+    if (Array.isArray(o?.folders) && Array.isArray(o?.images)) {
+      let l = { id: AURA_eagleLibraryId(o), ...o };
+      return { activeId: l.id, defaultId: l.id, libraries: [l] };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+function AURA_saveEagleCache(a14) {
+  try {
+    localStorage.setItem(AURA_EAGLE_CACHE_KEY, JSON.stringify(a14));
+  } catch {
+  }
+}
+function AURA_saveEagleLibrary(a14) {
+  let o = AURA_loadEagleCache() || { activeId: "", libraries: [] }, l = { ...a14, id: a14.id || AURA_eagleLibraryId(a14), savedAt: Date.now() }, i = o.libraries.filter((c) => c.id !== l.id);
+  let f = o.defaultId || l.id, h = [l, ...i], g = h.map(AURA_eagleLibrarySummary);
+  return AURA_saveEagleRegistry({ activeId: l.id, defaultId: f, libraries: g }), AURA_saveEagleCache({ activeId: l.id, defaultId: f, libraries: [l] }), { activeId: l.id, defaultId: f, libraries: h, activeLibrary: l };
+}
+function AURA_selectEagleLibrary(a14) {
+  let o = AURA_loadEagleRegistry();
+  if (!o) return null;
+  let l = o.libraries.find((i) => i.id === a14);
+  return l ? (AURA_saveEagleRegistry({ ...o, activeId: l.id }), { ...o, activeId: l.id, activeLibrary: l }) : null;
+}
+function AURA_setDefaultEagleLibrary(a14) {
+  let o = AURA_loadEagleRegistry();
+  return o ? (AURA_saveEagleRegistry({ ...o, activeId: a14, defaultId: a14 }), { ...o, activeId: a14, defaultId: a14 }) : null;
+}
+function AURA_activeEagleLibrary(a14) {
+  return a14?.libraries?.find((o) => o.id === a14.defaultId) || a14?.libraries?.find((o) => o.id === a14.activeId) || a14?.libraries?.[0] || null;
+}
+function AURA_clearEagleCache() {
+  try {
+    localStorage.removeItem(AURA_EAGLE_CACHE_KEY), localStorage.removeItem(AURA_EAGLE_REGISTRY_KEY);
+  } catch {
+  }
+}
+function AURA_canCacheEagleImages(a14) {
+  return a14.every((o) => ![o.src, o.mediaSrc].filter(Boolean).some((l) => /^blob:/i.test(String(l))));
+}
+function AURA_errorMessage(a14, o) {
+  return a14 instanceof Error ? a14.message : typeof a14 == "string" ? a14 : o;
+}
+function AURA_nativeEagleLibraryPathFromFiles(a14) {
+  let o = Array.from(a14 || []).find((l) => l?.path || l?.webkitRelativePath);
+  if (!o?.path) return "";
+  let l = String(o.path), i = String(o.webkitRelativePath || "");
+  if (i && l.endsWith(i)) return l.slice(0, -i.length).replace(/[\\/]+$/, "");
+  let c = l.indexOf(".library");
+  return c >= 0 ? l.slice(0, c + ".library".length) : "";
+}
+async function AURA_scanNativeEagleLibrary(a14) {
+  let o = await AURA_tauriInvoke("aura_scan_eagle_library", { path: a14 });
+  if (!o) throw new Error("Native library scan is unavailable");
+  let l = typeof o == "string" ? JSON.parse(o) : o, i = [{ id: "all", name: "All", children: [], modificationTime: Date.now(), tags: [] }, ...AURA_normalizeEagleFolders(l.folders), { id: "inbox", name: "Inbox", children: [], modificationTime: Date.now(), tags: [], iconColor: "yellow" }, { id: "trash", name: "Trash", children: [], modificationTime: Date.now(), tags: [], iconColor: "gray" }], c = (l.images || []).map((f) => ({ ...f, src: AURA_mediaSrc({ src: f.src }), mediaSrc: AURA_mediaSrc({ mediaSrc: f.mediaSrc || f.src }), filePath: f.mediaSrc || f.src, importedAt: AURA_importedAt(f) }));
+  return { source: "file", status: "connected-file", libraryName: l.libraryName || "Eagle Library", libraryPath: l.libraryPath || a14, folders: i, images: c };
+}
+async function AURA_findNativeEagleLibrary(a14) {
+  return await AURA_tauriInvoke("aura_find_eagle_library", { libraryName: a14 || "" }) || "";
+}
+async function AURA_pickNativeEagleLibrary() {
+  return await AURA_tauriInvoke("aura_pick_eagle_library", {}) || "";
 }
 function AURA_isThumbnailFile(a14) {
   let o = `${a14?.name || ""} ${a14?.webkitRelativePath || ""}`.toLowerCase();
@@ -7774,7 +7889,7 @@ var Sv = (a14) => a14.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase(), Ev =
   }
   listData(o) {
     var l;
-    return Array.isArray(o?.data) ? o.data : Array.isArray((l = o?.data) == null ? void 0 : l.data) ? o.data.data : [];
+    return Array.isArray(o?.data) ? o.data : Array.isArray((l = o?.data) == null ? void 0 : l.data) ? o.data.data : Array.isArray(o?.data?.folders) ? o.data.folders : Array.isArray(o?.folders) ? o.folders : [];
   }
   async isAvailable() {
     var o;
@@ -7808,7 +7923,43 @@ function xb({ size: a14 = 14, color: o = "#8e8e93" }) {
   return E.jsx("svg", { "code-path": "src/components/layout/EagleConnector.tsx:10:5", width: a14, height: a14, viewBox: "0 0 24 24", fill: "none", style: { color: o }, children: E.jsx("path", { "code-path": "src/components/layout/EagleConnector.tsx:11:7", d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }) });
 }
 function wb() {
-  let { dispatch: a14 } = Pn(), [o, l] = K.useState("disconnected"), [i, c] = K.useState(""), [f, h] = K.useState(false), g = K.useRef(null), m = K.useRef(null), p = K.useRef(null), v = K.useCallback(async () => {
+  let { dispatch: a14 } = Pn(), [o, l] = K.useState("disconnected"), [i, c] = K.useState(""), [f, h] = K.useState(false), [T, B] = K.useState([]), [D, U] = K.useState(""), [V, F] = K.useState(""), g = K.useRef(null), m = K.useRef(null), p = K.useRef(null);
+  K.useEffect(() => {
+    let z = AURA_loadEagleCache(), I = AURA_activeEagleLibrary(z);
+    z && (B(z.libraries), U(I?.id || z.activeId || ""), F(z.defaultId || ""));
+    if (!I) return;
+    if (Array.isArray(I.folders) && Array.isArray(I.images)) {
+      a14({ type: "SET_FOLDERS", payload: I.folders }), a14({ type: "SET_IMAGES", payload: I.images }), l(I.status || "connected-api"), c(`${I.images.length} cached items from "${I.libraryName || "Eagle Library"}"`);
+      return;
+    }
+    I.libraryPath && AURA_hasTauriInvoke() && (l("checking"), c(`Loading "${I.libraryName || "Eagle Library"}"...`), AURA_scanNativeEagleLibrary(I.libraryPath).then((q) => {
+      let O = AURA_saveEagleLibrary({ ...q, id: I.id });
+      B(O.libraries), U(O.activeId), F(O.defaultId || ""), a14({ type: "SET_FOLDERS", payload: q.folders }), a14({ type: "SET_IMAGES", payload: q.images }), l("connected-file"), c(`${q.images.length} items from "${q.libraryName}"`);
+    }).catch((q) => {
+      l("error"), c(AURA_errorMessage(q, "Library load failed"));
+    }));
+  }, [a14]);
+  let z = K.useCallback(async (I) => {
+    let q = T.find((O) => O.id === I);
+    if (!q) return;
+    AURA_saveEagleRegistry({ activeId: q.id, defaultId: V, libraries: T.map(AURA_eagleLibrarySummary) }), U(q.id);
+    if (Array.isArray(q.folders) && Array.isArray(q.images)) {
+      a14({ type: "SET_FOLDERS", payload: q.folders }), a14({ type: "SET_IMAGES", payload: q.images }), l(q.status || "connected-api"), c(`${q.images.length} cached items from "${q.libraryName || "Eagle Library"}"`);
+      return;
+    }
+    if (q.libraryPath && AURA_hasTauriInvoke()) {
+      l("checking"), c(`Loading "${q.libraryName || "Eagle Library"}"...`);
+      try {
+        let O = await AURA_scanNativeEagleLibrary(q.libraryPath), M = AURA_saveEagleLibrary({ ...O, id: q.id });
+        B(M.libraries), U(M.activeId), F(M.defaultId || ""), a14({ type: "SET_FOLDERS", payload: O.folders }), a14({ type: "SET_IMAGES", payload: O.images }), l("connected-file"), c(`${O.images.length} items from "${O.libraryName}"`);
+      } catch (O) {
+        l("error"), c(AURA_errorMessage(O, "Library load failed"));
+      }
+    }
+  }, [T, V, a14]), G = K.useCallback(() => {
+    let I = T.find((q) => q.id === D), q = I ? AURA_setDefaultEagleLibrary(I.id) : null;
+    q && (F(q.defaultId || ""), U(q.activeId || I.id), c(`Default library set to "${I.libraryName || "Eagle Library"}"`));
+  }, [T, D]), v = K.useCallback(async () => {
     l("checking"), c("Looking for Eagle App...");
     try {
       if (!await Il.isAvailable()) {
@@ -7824,12 +7975,13 @@ function wb() {
         var I;
         return { id: z.id, name: z.name || "Untitled", src: z.thumbnailURL || z.thumbnailPath || z.fileURL || z.filePath || "", mediaSrc: z.fileURL || z.filePath || z.thumbnailURL || z.thumbnailPath || "", width: z.width || 800, height: z.height || 600, tags: z.tags || [], url: z.url || z.website || z.link || z.sourceURL || "", website: z.website || "", link: z.link || "", sourceURL: z.sourceURL || "", annotation: z.annotation || "", folders: z.folders || [], folder: ((I = z.folders) == null ? void 0 : I[0]) || "", ext: z.ext || "jpg", mime: z.mime || z.type || "", importedAt: AURA_importedAt(z) };
       });
-      a14({ type: "SET_FOLDERS", payload: D }), a14({ type: "SET_IMAGES", payload: V }), l("connected-api"), c(`${V.length} items from "${T.name}"`);
+      let z = AURA_saveEagleLibrary({ source: "api", status: "connected-api", libraryName: T.name || "Eagle Library", libraryPath: T.path || T.libraryPath || T.folderPath || "", folders: D, images: V });
+      B(z.libraries), U(z.activeId), F(z.defaultId || ""), a14({ type: "SET_FOLDERS", payload: D }), a14({ type: "SET_IMAGES", payload: V }), l("connected-api"), c(`${V.length} items from "${T.name}"`);
     } catch (T) {
-      l("error"), c(T instanceof Error ? T.message : "Connection failed");
+      l("error"), c(AURA_errorMessage(T, "Connection failed"));
     }
   }, [a14]), x = K.useCallback(() => {
-    l("disconnected"), c(""), h(false);
+    AURA_clearEagleCache(), B([]), U(""), F(""), l("disconnected"), c(""), h(false);
   }, []), _ = K.useCallback(async (T) => {
     var B;
     let D = (B = T.target.files) == null ? void 0 : B[0];
@@ -7848,9 +8000,15 @@ function wb() {
     if (!(!D || D.length === 0)) {
       l("checking"), c("Reading Eagle library...");
       try {
-        let V = null, z = Array.from(D), I = [], q = /* @__PURE__ */ new Set(), O = z.find((A) => A.name === "library.json" || A.webkitRelativePath.endsWith("/library.json")) || z.find((A) => A.name === "metadata.json" && !A.webkitRelativePath.includes(".info/"));
-        if (O) {
-          let A = await O.text();
+        let V = null, z = Array.from(D), I = [], q = /* @__PURE__ */ new Set(), O = AURA_nativeEagleLibraryPathFromFiles(z);
+        if (O && AURA_hasTauriInvoke()) {
+          let M = await AURA_scanNativeEagleLibrary(O), A = AURA_saveEagleLibrary(M);
+          B(A.libraries), U(A.activeId), F(A.defaultId || ""), a14({ type: "SET_FOLDERS", payload: M.folders }), a14({ type: "SET_IMAGES", payload: M.images }), l("connected-file"), c(`${M.images.length} items from "${M.libraryName}"`);
+          return;
+        }
+        let M = z.find((A) => A.name === "library.json" || A.webkitRelativePath.endsWith("/library.json")) || z.find((A) => A.name === "metadata.json" && !A.webkitRelativePath.includes(".info/"));
+        if (M) {
+          let A = await M.text();
           V = JSON.parse(A), c(`Found library: ${V?.name || "Untitled"}...`);
         }
         if (V != null && V.folders) {
@@ -7858,8 +8016,8 @@ function wb() {
           a14({ type: "SET_FOLDERS", payload: A });
         }
         c("Scanning images...");
-        let M = z.filter((A) => A.webkitRelativePath.includes(".info/") && A.name === "metadata.json");
-        for (let A of M) try {
+        let C = z.filter((A) => A.webkitRelativePath.includes(".info/") && A.name === "metadata.json");
+        for (let A of C) try {
           let J = await A.text(), ee = JSON.parse(J);
           if (!ee.id || q.has(ee.id)) continue;
           q.add(ee.id);
@@ -7876,19 +8034,65 @@ function wb() {
           I.push({ id: ee.id, name: ee.name || "Untitled", src: ae || "", mediaSrc: oe || ae || "", width: ee.width || 800, height: ee.height || 600, tags: ee.tags || [], url: ee.url || ee.website || ee.link || ee.sourceURL || "", website: ee.website || "", link: ee.link || "", sourceURL: ee.sourceURL || "", annotation: ee.annotation || "", folders: ee.folders || [], folder: ((B = ee.folders) == null ? void 0 : B[0]) || "", ext: ee.ext || (ie ? "mp4" : "jpg"), mime: ee.mime || ee.type || "", importedAt: AURA_importedAt(ee) });
         } catch {
         }
+        if (AURA_canCacheEagleImages(I)) {
+          let A = AURA_saveEagleLibrary({ source: "file", status: "connected-file", libraryName: V?.name || "Eagle Library", folders: V?.folders ? [{ id: "all", name: "All", children: [], modificationTime: Date.now(), tags: [] }, ...AURA_normalizeEagleFolders(V.folders), { id: "inbox", name: "Inbox", children: [], modificationTime: Date.now(), tags: [], iconColor: "yellow" }, { id: "trash", name: "Trash", children: [], modificationTime: Date.now(), tags: [], iconColor: "gray" }] : [], images: I });
+          B(A.libraries), U(A.activeId), F(A.defaultId || "");
+        }
         a14({ type: "SET_IMAGES", payload: I }), l("connected-file"), c(`${I.length} items from "${V?.name || "Eagle Library"}"`);
       } catch (V) {
-        l("error"), c(V instanceof Error ? V.message : "Import failed");
+        l("error"), c(AURA_errorMessage(V, "Import failed"));
       }
     }
-  }, [a14]), b = o === "connected-api" || o === "connected-file";
-  return E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:269:5", className: "mx-2 mb-2 rounded-[10px] overflow-hidden", style: { border: b ? "1px solid rgba(52, 199, 89, 0.3)" : "1px solid rgba(0, 0, 0, 0.08)", backgroundColor: b ? "rgba(52, 199, 89, 0.04)" : "rgba(0, 0, 0, 0.02)" }, children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:281:7", onClick: () => h(!f), className: "w-full flex items-center gap-2 px-3 py-[8px] text-left", children: [b ? E.jsx(km, { "code-path": "src/components/layout/EagleConnector.tsx:286:11", size: 14, style: { color: "#34c759" } }) : E.jsx(xb, { "code-path": "src/components/layout/EagleConnector.tsx:288:11", size: 14, color: "#8e8e93" }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:290:9", className: "flex-1 text-[12px] font-medium", style: { color: b ? "#34c759" : "#8e8e93" }, children: b ? "Eagle Connected" : "Link Eagle Library" }), b && E.jsx(wm, { "code-path": "src/components/layout/EagleConnector.tsx:296:25", size: 12, style: { color: "#34c759" } })] }), f && E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:301:9", className: "px-3 pb-3", children: [i && E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:304:13", className: "flex items-center gap-1.5 mb-2 px-2 py-1.5 rounded-[6px]", style: { backgroundColor: o === "error" ? "rgba(255, 59, 48, 0.08)" : o === "connected-api" || o === "connected-file" ? "rgba(52, 199, 89, 0.08)" : "rgba(0, 0, 0, 0.04)" }, children: [o === "error" && E.jsx(Dv, { "code-path": "src/components/layout/EagleConnector.tsx:314:38", size: 11, style: { color: "#ff3b30" } }), o === "checking" && E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:315:41", size: 11, className: "animate-spin", style: { color: "#007aff" } }), (o === "connected-api" || o === "connected-file") && E.jsx(wm, { "code-path": "src/components/layout/EagleConnector.tsx:316:79", size: 11, style: { color: "#34c759" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:317:15", className: "text-[11px] truncate", style: { color: o === "error" ? "#ff3b30" : o === "checking" ? "#007aff" : "#34c759" }, children: i })] }), b ? E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:372:13", className: "flex flex-col gap-[6px]", children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:373:15", onClick: o === "connected-api" ? v : () => {
-    var T;
-    return (T = g.current) == null ? void 0 : T.click();
-  }, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5", children: [E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:377:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:378:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Refresh library" })] }), E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:382:15", onClick: x, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5", children: [E.jsx(Hv, { "code-path": "src/components/layout/EagleConnector.tsx:386:17", size: 12, style: { color: "#ff3b30" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:387:17", className: "text-[11px]", style: { color: "#ff3b30" }, children: "Disconnect" })] })] }) : E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:330:13", className: "flex flex-col gap-[6px]", children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:332:15", onClick: v, disabled: o === "checking", className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5 disabled:opacity-50", children: [E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:337:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:338:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Auto-detect Eagle App" })] }), E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:343:15", className: "flex items-center gap-2 my-[2px]", style: { color: "#c7c7cc" }, children: [E.jsx("div", { "code-path": "src/components/layout/EagleConnector.tsx:347:17", className: "flex-1 h-px", style: { backgroundColor: "rgba(0,0,0,0.06)" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:348:17", className: "text-[10px]", children: "or" }), E.jsx("div", { "code-path": "src/components/layout/EagleConnector.tsx:349:17", className: "flex-1 h-px", style: { backgroundColor: "rgba(0,0,0,0.06)" } })] }), E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:353:15", onClick: () => {
-    var T;
-    return (T = p.current) == null ? void 0 : T.click();
-  }, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5", children: [E.jsx(Mv, { "code-path": "src/components/layout/EagleConnector.tsx:357:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:358:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Select .library folder" })] }), E.jsxs("p", { "code-path": "src/components/layout/EagleConnector.tsx:363:15", className: "text-[10px] px-2.5 mt-1", style: { color: "#aeaeb2", lineHeight: 1.4 }, children: ["Pick your Eagle", " ", E.jsx("code", { "code-path": "src/components/layout/EagleConnector.tsx:365:17", className: "px-1 py-[1px] rounded text-[9px]", style: { backgroundColor: "rgba(0,0,0,0.06)" }, children: ".library" }), " ", "folder to import everything"] })] })] }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:397:7", ref: p, type: "file", webkitdirectory: "", directory: "", onChange: N, className: "hidden" }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:406:7", ref: g, type: "file", accept: ".json", onChange: _, className: "hidden" }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:407:7", ref: m, type: "file", webkitdirectory: "", directory: "", onChange: N, className: "hidden" })] });
+  }, [a14]), W = K.useCallback(async () => {
+    if (!AURA_hasTauriInvoke()) {
+      p.current && p.current.click();
+      return;
+    }
+    l("checking"), c("Select Eagle .library folder...");
+    try {
+      let I = await AURA_pickNativeEagleLibrary();
+      if (!I) {
+        l(o === "connected-api" || o === "connected-file" ? o : "disconnected"), c("");
+        return;
+      }
+      let q = await AURA_scanNativeEagleLibrary(I), O = AURA_saveEagleLibrary(q);
+      B(O.libraries), U(O.activeId), F(O.defaultId || ""), a14({ type: "SET_FOLDERS", payload: q.folders }), a14({ type: "SET_IMAGES", payload: q.images }), l("connected-file"), c(`${q.images.length} items from "${q.libraryName}"`);
+    } catch (I) {
+      l("error"), c(AURA_errorMessage(I, "Library selection failed"));
+    }
+  }, [a14, o]), Y = K.useCallback(async () => {
+    let I = T.find((q) => q.id === D);
+    if (I?.libraryPath && AURA_hasTauriInvoke()) {
+      l("checking"), c("Scanning linked library...");
+      try {
+        let q = await AURA_scanNativeEagleLibrary(I.libraryPath), O = AURA_saveEagleLibrary({ ...q, id: I.id });
+        B(O.libraries), U(O.activeId), F(O.defaultId || ""), a14({ type: "SET_FOLDERS", payload: q.folders }), a14({ type: "SET_IMAGES", payload: q.images }), l("connected-file"), c(`${q.images.length} items from "${q.libraryName}"`);
+      } catch (q) {
+        l("error"), c(AURA_errorMessage(q, "Library scan failed"));
+      }
+      return;
+    }
+    if (AURA_hasTauriInvoke()) {
+      l("checking"), c("Locating linked library...");
+      try {
+        let q = await AURA_findNativeEagleLibrary(I?.libraryName || ""), O = q ? await AURA_scanNativeEagleLibrary(q) : null;
+        if (O) {
+          let M = AURA_saveEagleLibrary({ ...O, id: I?.id });
+          B(M.libraries), U(M.activeId), F(M.defaultId || ""), a14({ type: "SET_FOLDERS", payload: O.folders }), a14({ type: "SET_IMAGES", payload: O.images }), l("connected-file"), c(`${O.images.length} items from "${O.libraryName}"`);
+          return;
+        }
+      } catch (q) {
+        l("error"), c(AURA_errorMessage(q, "Library scan failed"));
+        return;
+      }
+    }
+    if (I?.source === "api" || o === "connected-api") {
+      await v();
+      return;
+    }
+    l("error"), c("Could not find the linked .library folder");
+  }, [T, D, o, v, a14]), b = o === "connected-api" || o === "connected-file";
+  return E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:269:5", className: "mx-2 mb-2 rounded-[10px] overflow-hidden", style: { border: b ? "1px solid rgba(52, 199, 89, 0.3)" : "1px solid rgba(0, 0, 0, 0.08)", backgroundColor: b ? "rgba(52, 199, 89, 0.04)" : "rgba(0, 0, 0, 0.02)" }, children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:281:7", onClick: () => h(!f), className: "w-full flex items-center gap-2 px-3 py-[8px] text-left", children: [b ? E.jsx(km, { "code-path": "src/components/layout/EagleConnector.tsx:286:11", size: 14, style: { color: "#34c759" } }) : E.jsx(xb, { "code-path": "src/components/layout/EagleConnector.tsx:288:11", size: 14, color: "#8e8e93" }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:290:9", className: "flex-1 text-[12px] font-medium", style: { color: b ? "#34c759" : "#8e8e93" }, children: b ? "Eagle Connected" : "Link Eagle Library" }), b && E.jsx(wm, { "code-path": "src/components/layout/EagleConnector.tsx:296:25", size: 12, style: { color: "#34c759" } })] }), b && T.length > 0 && E.jsx("select", { value: D, onChange: (I) => z(I.target.value), className: "mx-3 mb-2 w-[calc(100%-24px)] rounded-[7px] px-2 py-[6px] text-[11px] outline-none", style: { color: "#1c1c1e", backgroundColor: "rgba(255,255,255,0.75)", border: "1px solid rgba(0,0,0,0.08)" }, children: T.map((I) => E.jsx("option", { value: I.id, children: I.libraryName || "Eagle Library" }, I.id)) }), f && E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:301:9", className: "px-3 pb-3", children: [i && E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:304:13", className: "flex items-center gap-1.5 mb-2 px-2 py-1.5 rounded-[6px]", style: { backgroundColor: o === "error" ? "rgba(255, 59, 48, 0.08)" : o === "connected-api" || o === "connected-file" ? "rgba(52, 199, 89, 0.08)" : "rgba(0, 0, 0, 0.04)" }, children: [o === "error" && E.jsx(Dv, { "code-path": "src/components/layout/EagleConnector.tsx:314:38", size: 11, style: { color: "#ff3b30" } }), o === "checking" && E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:315:41", size: 11, className: "animate-spin", style: { color: "#007aff" } }), (o === "connected-api" || o === "connected-file") && E.jsx(wm, { "code-path": "src/components/layout/EagleConnector.tsx:316:79", size: 11, style: { color: "#34c759" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:317:15", className: "text-[11px] truncate", style: { color: o === "error" ? "#ff3b30" : o === "checking" ? "#007aff" : "#34c759" }, children: i })] }), T.length > 0 && E.jsx("div", { className: "mb-2 rounded-[8px] overflow-hidden", style: { border: "1px solid rgba(0,0,0,0.06)", backgroundColor: "rgba(255,255,255,0.55)" }, children: T.map((I) => E.jsxs("button", { onClick: () => z(I.id), className: "w-full flex items-center gap-2 px-2.5 py-[7px] text-left hover:bg-black/5", children: [E.jsx(xb, { size: 13, color: D === I.id ? "#007aff" : "#8e8e93" }), E.jsxs("span", { className: "min-w-0 flex-1", children: [E.jsx("span", { className: "block text-[11px] truncate", style: { color: "#1c1c1e", fontWeight: D === I.id ? 600 : 400 }, children: I.libraryName || "Eagle Library" }), (I.libraryPath || I.source) && E.jsx("span", { className: "block text-[10px] truncate", style: { color: "#8e8e93" }, children: I.libraryPath || I.source })] }), D === I.id && E.jsx(wm, { size: 12, style: { color: "#007aff" } })] }, I.id)) }), b ? E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:372:13", className: "flex flex-col gap-[6px]", children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:373:15", onClick: Y, disabled: o === "checking", className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5 disabled:opacity-50", children: [E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:377:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:378:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Refresh library" })] }), E.jsxs("button", { onClick: G, disabled: !D || D === V, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5 disabled:opacity-50", children: [E.jsx(wm, { size: 12, style: { color: "#007aff" } }), E.jsx("span", { className: "text-[11px]", style: { color: "#1c1c1e" }, children: D === V ? "Default library" : "Set as default" })] }), E.jsxs("button", { onClick: W, disabled: o === "checking", className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5 disabled:opacity-50", children: [E.jsx(rb, { size: 12, style: { color: "#007aff" } }), E.jsx("span", { className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Add new library" })] }), E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:382:15", onClick: x, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5", children: [E.jsx(Hv, { "code-path": "src/components/layout/EagleConnector.tsx:386:17", size: 12, style: { color: "#ff3b30" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:387:17", className: "text-[11px]", style: { color: "#ff3b30" }, children: "Disconnect" })] })] }) : E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:330:13", className: "flex flex-col gap-[6px]", children: [E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:332:15", onClick: v, disabled: o === "checking", className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5 disabled:opacity-50", children: [E.jsx(bc, { "code-path": "src/components/layout/EagleConnector.tsx:337:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:338:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Auto-detect Eagle App" })] }), E.jsxs("div", { "code-path": "src/components/layout/EagleConnector.tsx:343:15", className: "flex items-center gap-2 my-[2px]", style: { color: "#c7c7cc" }, children: [E.jsx("div", { "code-path": "src/components/layout/EagleConnector.tsx:347:17", className: "flex-1 h-px", style: { backgroundColor: "rgba(0,0,0,0.06)" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:348:17", className: "text-[10px]", children: "or" }), E.jsx("div", { "code-path": "src/components/layout/EagleConnector.tsx:349:17", className: "flex-1 h-px", style: { backgroundColor: "rgba(0,0,0,0.06)" } })] }), E.jsxs("button", { "code-path": "src/components/layout/EagleConnector.tsx:353:15", onClick: W, className: "flex items-center gap-2 px-2.5 py-[6px] rounded-[6px] text-left transition-colors hover:bg-black/5", children: [E.jsx(Mv, { "code-path": "src/components/layout/EagleConnector.tsx:357:17", size: 12, style: { color: "#007aff" } }), E.jsx("span", { "code-path": "src/components/layout/EagleConnector.tsx:358:17", className: "text-[11px]", style: { color: "#1c1c1e" }, children: "Select .library folder" })] }), E.jsxs("p", { "code-path": "src/components/layout/EagleConnector.tsx:363:15", className: "text-[10px] px-2.5 mt-1", style: { color: "#aeaeb2", lineHeight: 1.4 }, children: ["Pick your Eagle", " ", E.jsx("code", { "code-path": "src/components/layout/EagleConnector.tsx:365:17", className: "px-1 py-[1px] rounded text-[9px]", style: { backgroundColor: "rgba(0,0,0,0.06)" }, children: ".library" }), " ", "folder to import everything"] })] })] }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:397:7", ref: p, type: "file", webkitdirectory: "", directory: "", onChange: N, className: "hidden" }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:406:7", ref: g, type: "file", accept: ".json", onChange: _, className: "hidden" }), E.jsx("input", { "code-path": "src/components/layout/EagleConnector.tsx:407:7", ref: m, type: "file", webkitdirectory: "", directory: "", onChange: N, className: "hidden" })] });
 }
 var _b = { red: "#ff3b30", orange: "#ff9500", yellow: "#ffcc00", green: "#34c759", aqua: "#00c7be", blue: "#007aff", purple: "#af52de", pink: "#ff2d55", gray: "#8e8e93" };
 function kb({ color: a14 }) {
@@ -7900,8 +8104,15 @@ function Sm({ folder: a14, depth: o = 0 }) {
   return E.jsxs("div", { "code-path": "src/components/layout/Sidebar.tsx:47:5", children: [E.jsxs("button", { "code-path": "src/components/layout/Sidebar.tsx:48:7", onClick: () => i({ type: "SET_ACTIVE_FOLDER", payload: a14.id }), className: "w-full flex items-center gap-2 px-3 py-[5px] rounded-[6px] text-left transition-all duration-100 group", style: { backgroundColor: c ? "rgba(0, 122, 255, 0.08)" : "transparent", marginLeft: `${o * 12}px` }, children: [f ? E.jsx(pb, { "code-path": "src/components/layout/Sidebar.tsx:57:11", size: 16, className: "flex-shrink-0", style: { color: c ? "#007aff" : "#8e8e93" } }) : h ? E.jsx(Bv, { "code-path": "src/components/layout/Sidebar.tsx:63:11", size: 16, className: "flex-shrink-0", style: { color: c ? "#007aff" : "#8e8e93" } }) : E.jsx(kb, { "code-path": "src/components/layout/Sidebar.tsx:69:11", color: a14.iconColor }), E.jsx("span", { "code-path": "src/components/layout/Sidebar.tsx:71:9", className: "flex-1 text-[13px] truncate", style: { color: c ? "#007aff" : "#1c1c1e", fontWeight: c ? 500 : 400 }, children: a14.id === "all" ? `${a14.name} v1.0.6` : a14.name }), E.jsx("span", { "code-path": "src/components/layout/Sidebar.tsx:80:9", className: "text-[11px] tabular-nums flex-shrink-0", style: { color: "#aeaeb2" }, children: m > 0 ? m : "" }), a14.children.length > 0 && E.jsx(Lv, { "code-path": "src/components/layout/Sidebar.tsx:87:11", size: 12, className: "flex-shrink-0", style: { color: "#c7c7cc" } })] }), a14.children.length > 0 && a14.children.map((p) => E.jsx(Sm, { "code-path": "src/components/layout/Sidebar.tsx:96:11", folder: p, depth: o + 1 }, p.id))] });
 }
 function Sb() {
-  let { state: a14, dispatch: o } = Pn();
-  return a14.isSidebarOpen ? E.jsxs("div", { "code-path": "src/components/layout/Sidebar.tsx:108:5", className: "w-[240px] flex-shrink-0 flex flex-col overflow-hidden", style: { backgroundColor: "#f7f7f7", borderRight: "1px solid rgba(0, 0, 0, 0.08)" }, children: [E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:116:7", className: "px-3 pt-3", children: E.jsx(wb, { "code-path": "src/components/layout/Sidebar.tsx:117:9" }) }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:121:7", className: "mx-3 my-2 h-px", style: { backgroundColor: "rgba(0, 0, 0, 0.06)" } }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:124:7", className: "px-3 pb-2", children: E.jsxs("div", { "code-path": "src/components/layout/Sidebar.tsx:125:9", className: "flex items-center gap-2 px-3 py-[6px] rounded-[8px]", style: { backgroundColor: "rgba(0, 0, 0, 0.05)", border: "1px solid rgba(0, 0, 0, 0.06)" }, children: [E.jsx(xc, { "code-path": "src/components/layout/Sidebar.tsx:132:11", size: 14, style: { color: "#aeaeb2" } }), E.jsx("input", { "code-path": "src/components/layout/Sidebar.tsx:133:11", type: "text", placeholder: "Search...", value: a14.searchQuery, onChange: (l) => o({ type: "SET_SEARCH", payload: l.target.value }), className: "flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#aeaeb2]", style: { color: "#1c1c1e" } })] }) }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:145:7", className: "flex-1 overflow-y-auto px-2 pb-4 space-y-[1px] scrollbar-thin", children: a14.folders.map((l) => E.jsx(Sm, { "code-path": "src/components/layout/Sidebar.tsx:147:11", folder: l }, l.id)) })] }) : null;
+  let { state: a14, dispatch: o } = Pn(), l = String(a14.searchQuery || "").trim().toLowerCase(), i = K.useMemo(() => {
+    if (!l) return a14.folders;
+    let c = (f) => {
+      let h = (f.children || []).map(c).filter(Boolean), g = String(f.name || "").toLowerCase().includes(l);
+      return g || h.length ? { ...f, children: h } : null;
+    };
+    return a14.folders.map(c).filter(Boolean);
+  }, [a14.folders, l]);
+  return a14.isSidebarOpen ? E.jsxs("div", { "code-path": "src/components/layout/Sidebar.tsx:108:5", className: "w-[240px] flex-shrink-0 flex flex-col overflow-hidden", style: { backgroundColor: "#f7f7f7", borderRight: "1px solid rgba(0, 0, 0, 0.08)" }, children: [E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:116:7", className: "px-3 pt-3", children: E.jsx(wb, { "code-path": "src/components/layout/Sidebar.tsx:117:9" }) }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:121:7", className: "mx-3 my-2 h-px", style: { backgroundColor: "rgba(0, 0, 0, 0.06)" } }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:124:7", className: "px-3 pb-2", children: E.jsxs("div", { "code-path": "src/components/layout/Sidebar.tsx:125:9", className: "flex items-center gap-2 px-3 py-[6px] rounded-[8px]", style: { backgroundColor: "rgba(0, 0, 0, 0.05)", border: "1px solid rgba(0, 0, 0, 0.06)" }, children: [E.jsx(xc, { "code-path": "src/components/layout/Sidebar.tsx:132:11", size: 14, style: { color: "#aeaeb2" } }), E.jsx("input", { "code-path": "src/components/layout/Sidebar.tsx:133:11", type: "text", placeholder: "Search...", value: a14.searchQuery, onChange: (c) => o({ type: "SET_SEARCH", payload: c.target.value }), className: "flex-1 bg-transparent text-[13px] outline-none placeholder:text-[#aeaeb2]", style: { color: "#1c1c1e" } })] }) }), E.jsx("div", { "code-path": "src/components/layout/Sidebar.tsx:145:7", className: "flex-1 overflow-y-auto px-2 pb-4 space-y-[1px] scrollbar-thin", children: i.map((c) => E.jsx(Sm, { "code-path": "src/components/layout/Sidebar.tsx:147:11", folder: c }, c.id)) })] }) : null;
 }
 var Eb = [{ mode: "grid", icon: E.jsx($v, { "code-path": "src/components/layout/BottomToolbar.tsx:6:25", size: 15 }), label: "Grid" }, { mode: "canvas", icon: E.jsx(Jv, { "code-path": "src/components/layout/BottomToolbar.tsx:7:27", size: 15 }), label: "Canvas" }];
 function Tb() {
