@@ -1,0 +1,18 @@
+[package]
+name = "aura-desktop"
+version = "1.0.6"
+description = "Aura desktop app"
+authors = ["Aura"]
+edition = "2021"
+
+[lib]
+name = "aura_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+
