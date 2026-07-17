@@ -7614,6 +7614,45 @@ function AURA_sortByImportDate(a14, o) {
     return f || i.index - c.index;
   }).map(({ image: i }) => i);
 }
+function AURA_canvasStorageKey(a14) {
+  let o = 2166136261;
+  for (let l of a14) {
+    let i = String(l.id || "");
+    for (let c = 0; c < i.length; c++) o ^= i.charCodeAt(c), o = Math.imul(o, 16777619);
+  }
+  return `aura:canvas:${a14.length}:${(o >>> 0).toString(36)}`;
+}
+function AURA_canvasBaseLayout(a14, o) {
+  let l = Math.max(320, (o || 1200) - Yl * 2), i = [];
+  return Vg(a14, jg, l * 0.8).forEach((c, f) => {
+    a14[f] && i.push({ id: a14[f].id, image: a14[f], x: c.x, y: c.y, w: c.w, h: c.h, inGrid: true });
+  }), i;
+}
+function AURA_loadCanvasSnapshot(a14, o, l) {
+  try {
+    let i = localStorage.getItem(a14);
+    if (!i) return null;
+    let c = JSON.parse(i), f = new Map(o.map((p) => [p.id, p])), h = Array.isArray(c.elements) ? c.elements : [], g = new Set(), m = h.map((p) => {
+      let v = f.get(p.id);
+      return v ? (g.add(p.id), { id: p.id, image: v, x: Number(p.x) || 0, y: Number(p.y) || 0, w: Number(p.w) || 120, h: Number(p.h) || 120, inGrid: p.inGrid !== false, clusterId: p.clusterId }) : null;
+    }).filter(Boolean), y = l.filter((p) => !g.has(p.id));
+    return { elements: [...m, ...y], view: c.view, options: c.options || {}, labels: c.labels || {} };
+  } catch {
+    return null;
+  }
+}
+function AURA_saveCanvasSnapshot(a14, o) {
+  try {
+    localStorage.setItem(a14, JSON.stringify(o));
+  } catch {
+  }
+}
+function AURA_clearCanvasSnapshot(a14) {
+  try {
+    localStorage.removeItem(a14);
+  } catch {
+  }
+}
 function AURA_isThumbnailFile(a14) {
   let o = `${a14?.name || ""} ${a14?.webkitRelativePath || ""}`.toLowerCase();
   return o.includes("thumbnail") || o.includes("preview") || o.includes("poster") || o.includes("cover");
@@ -9499,7 +9538,7 @@ function AURA_segmentButton({ active: a14, onClick: o, title: l, children: i }) 
   return E.jsx("button", { type: "button", title: l, onClick: o, "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 w-12 flex items-center justify-center transition-colors", style: { backgroundColor: a14 ? "rgba(255,255,255,0.95)" : "transparent", color: a14 ? "#111" : "#3c3c43", boxShadow: a14 ? "0 1px 2px rgba(0,0,0,0.08)" : "none" }, children: i });
 }
 function K1() {
-  let { filteredImages: a14, zoomToImage: o } = Pn(), l = K.useRef(null), i = K.useRef(/* @__PURE__ */ new Map()), [c, f] = K.useState([]), [h, g] = K.useState({ scale: 1, x: Yl, y: 30 }), [m, p] = K.useState(/* @__PURE__ */ new Set()), [v, x] = K.useState(null), [_, N] = K.useState(false), [b, T] = K.useState("center"), [B, D] = K.useState("middle"), [V, z] = K.useState(or), [groupPadding, setGroupPadding] = K.useState(180), [groupSpacing, setGroupSpacing] = K.useState(96), [I, q] = K.useState("rows"), [O, M] = K.useState("auto"), [A, J] = K.useState({}), [ee, ce] = K.useState(null), ae = K.useRef(null), oe = K.useRef(false), ie = K.useRef(false), fe = K.useRef(h), P = K.useRef([]), [Q, X] = K.useState(0), R = K.useRef([]), [se, xe] = K.useState(0);
+  let { filteredImages: a14, zoomToImage: o } = Pn(), l = K.useRef(null), i = K.useRef(/* @__PURE__ */ new Map()), [c, f] = K.useState([]), [h, g] = K.useState({ scale: 1, x: Yl, y: 30 }), [m, p] = K.useState(/* @__PURE__ */ new Set()), [v, x] = K.useState(null), [_, N] = K.useState(false), [b, T] = K.useState("center"), [B, D] = K.useState("middle"), [V, z] = K.useState(or), [groupPadding, setGroupPadding] = K.useState(180), [groupSpacing, setGroupSpacing] = K.useState(96), [I, q] = K.useState("rows"), [O, M] = K.useState("auto"), [A, J] = K.useState({}), [ee, ce] = K.useState(null), ae = K.useRef(null), oe = K.useRef(false), ie = K.useRef(false), fe = K.useRef(h), P = K.useRef([]), [Q, X] = K.useState(0), R = K.useRef([]), [se, xe] = K.useState(0), saveReadyRef = K.useRef(false), saveTimerRef = K.useRef(0), storageKey = K.useMemo(() => AURA_canvasStorageKey(a14), [a14]);
   fe.current = h;
   let le = K.useRef([]);
   le.current = c;
@@ -9520,13 +9559,19 @@ function K1() {
   }, []);
   K.useEffect(() => {
     var $, te;
-    let me = ((($ = l.current) == null ? void 0 : $.clientWidth) || 1200) - Yl * 2, ue = [];
-    Vg(a14, jg, me * 0.8).forEach((Pe, Oe) => {
-      ue.push({ id: a14[Oe].id, image: a14[Oe], x: Pe.x, y: Pe.y, w: Pe.w, h: Pe.h, inGrid: true });
-    }), f(ue), le.current = ue;
-    let _e = ue.reduce((Pe, Oe) => Math.max(Pe, Oe.y + Oe.h), 0), ve = ((te = l.current) == null ? void 0 : te.clientHeight) || 800, pe = { scale: 1, x: Yl + me * 0.1, y: Math.max(20, (ve - _e) / 3) };
-    g(pe), fe.current = pe, p(/* @__PURE__ */ new Set()), P.current = [], R.current = [], X(0), xe(0);
-  }, [a14]), K.useEffect(() => {
+    saveReadyRef.current = false;
+    let me = (($ = l.current) == null ? void 0 : $.clientWidth) || 1200, ue = AURA_canvasBaseLayout(a14, me), _e = ue.reduce((Ue, Ae) => Math.max(Ue, Ae.y + Ae.h), 0), ve = ((te = l.current) == null ? void 0 : te.clientHeight) || 800, pe = { scale: 1, x: Yl + (me - Yl * 2) * 0.1, y: Math.max(20, (ve - _e) / 3) }, Pe = AURA_loadCanvasSnapshot(storageKey, a14, ue), Oe = Pe?.options || {};
+    Pe ? (f(Pe.elements), le.current = Pe.elements, Pe.view && typeof Pe.view.scale == "number" ? (g(Pe.view), fe.current = Pe.view) : (g(pe), fe.current = pe), T(["left", "center", "right"].includes(Oe.hAlign) ? Oe.hAlign : "center"), D(["top", "middle", "bottom"].includes(Oe.vAlign) ? Oe.vAlign : "middle"), z(Number.isFinite(Number(Oe.gap)) ? Number(Oe.gap) : or), setGroupPadding(Number.isFinite(Number(Oe.groupPadding)) ? Number(Oe.groupPadding) : 180), setGroupSpacing(Number.isFinite(Number(Oe.groupSpacing)) ? Number(Oe.groupSpacing) : 96), q(["rows", "masonry"].includes(Oe.mode) ? Oe.mode : "rows"), M(["auto", "2", "3"].includes(String(Oe.columns)) ? String(Oe.columns) : "auto"), J(Pe.labels || {})) : (f(ue), le.current = ue, g(pe), fe.current = pe, T("center"), D("middle"), z(or), setGroupPadding(180), setGroupSpacing(96), q("rows"), M("auto"), J({}));
+    p(/* @__PURE__ */ new Set()), P.current = [], R.current = [], X(0), xe(0), setTimeout(() => {
+      saveReadyRef.current = true;
+    }, 0);
+  }, [a14, storageKey]), K.useEffect(() => {
+    if (!saveReadyRef.current) return;
+    clearTimeout(saveTimerRef.current), saveTimerRef.current = setTimeout(() => {
+      AURA_saveCanvasSnapshot(storageKey, { version: 1, elements: c.map(($) => ({ id: $.id, x: $.x, y: $.y, w: $.w, h: $.h, inGrid: $.inGrid, clusterId: $.clusterId })), view: h, options: { hAlign: b, vAlign: B, gap: V, groupPadding, groupSpacing, mode: I, columns: O }, labels: A });
+    }, 180);
+    return () => clearTimeout(saveTimerRef.current);
+  }, [storageKey, c, h, b, B, V, groupPadding, groupSpacing, I, O, A]), K.useEffect(() => {
     document.querySelectorAll("[data-group-shell]").forEach(($) => {
       mt.killTweensOf($), mt.set($, { x: 0, y: 0, clearProps: "transform" });
     });
@@ -9709,9 +9754,12 @@ function K1() {
       });
       return H($, nt), p(/* @__PURE__ */ new Set()), nt;
     });
-  }, [H, groupPadding, groupSpacing]);
+  }, [H, groupPadding, groupSpacing]), resetCanvasGroups = K.useCallback(() => {
+    let $ = AURA_canvasBaseLayout(a14, l.current?.clientWidth || 1200);
+    H(le.current, $), AURA_clearCanvasSnapshot(storageKey), AURA_playSound("page"), f($), le.current = $, p(/* @__PURE__ */ new Set()), J({});
+  }, [a14, H, storageKey]);
   let toolbarDivider = E.jsx("div", { className: "h-9 w-px mx-2", style: { backgroundColor: "rgba(0,0,0,0.08)" } }), segmentStyle = { backgroundColor: "rgba(0,0,0,0.045)", border: "1px solid rgba(0,0,0,0.04)" }, modeButton = ($, te, me) => E.jsx("button", { type: "button", title: te, onClick: () => q($), "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 px-3 text-[11px] font-semibold transition-colors", style: { backgroundColor: I === $ ? "rgba(255,255,255,0.95)" : "transparent", color: I === $ ? "#111" : "#3c3c43", boxShadow: I === $ ? "0 1px 2px rgba(0,0,0,0.08)" : "none" }, children: me }, $), columnButton = ($, te) => E.jsx("button", { type: "button", title: `Columns ${te}`, onClick: () => M($), "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 px-3 text-[11px] font-semibold transition-colors", style: { backgroundColor: O === $ ? "rgba(255,255,255,0.95)" : "transparent", color: O === $ ? "#111" : "#3c3c43", boxShadow: O === $ ? "0 1px 2px rgba(0,0,0,0.08)" : "none" }, children: te }, $);
-  return E.jsxs("div", { "code-path": "src/components/views/CanvasView.tsx:400:5", ref: l, className: "w-full h-full overflow-hidden relative select-none", style: { cursor: _ ? "grabbing" : "grab" }, onWheel: ge, onMouseDown: we, onClick: wt, children: [E.jsxs("div", { className: "absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0 px-3 py-2 rounded-[22px]", style: { backgroundColor: "rgba(255,255,255,0.92)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)", boxShadow: "0 10px 32px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.08)" }, onMouseDown: ($) => $.stopPropagation(), onClick: ($) => $.stopPropagation(), children: [E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["left", "Group align left"], ["center", "Group align center"], ["right", "Group align right"]].map(([$, te]) => E.jsx(AURA_segmentButton, { active: b === $, title: te, onClick: () => T($), children: AURA_alignGlyph($) }, $)) }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["top", "Item align top"], ["middle", "Item align middle"], ["bottom", "Item align bottom"]].map(([$, te]) => E.jsx(AURA_segmentButton, { active: B === $, title: te, onClick: () => D($), children: AURA_alignGlyph($) }, $)) }), toolbarDivider, E.jsx("button", { type: "button", title: "Group alignment: organize groups", onClick: alignGroupsTopRow, "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 px-3 rounded-[10px] text-[12px] font-semibold transition-colors inline-flex items-center gap-2", style: { backgroundColor: "rgba(0,0,0,0.045)", color: "#1c1c1e", border: "1px solid rgba(0,0,0,0.04)" }, children: [E.jsx(Jv, { size: 14 }), E.jsx("span", { children: "Organize" })] }), E.jsxs("label", { className: "h-9 flex items-center gap-2 pl-2", title: "Spacing between original and custom groups", children: [E.jsx("input", { type: "number", min: 0, max: 600, step: 10, value: groupPadding, onChange: ($) => setGroupPadding(Math.max(0, Number($.target.value) || 0)), className: "h-8 w-[58px] rounded-[8px] border border-black/10 bg-white/80 px-2 text-[11px] tabular-nums outline-none" })] }), E.jsxs("label", { className: "h-9 flex items-center gap-2 pl-2", title: "Spacing between custom groups", children: [E.jsx("input", { type: "range", min: 24, max: 220, step: 4, value: groupSpacing, onChange: ($) => setGroupSpacing(Number($.target.value)), className: "w-[86px]" }), E.jsx("span", { className: "text-[11px] tabular-nums w-7 text-right", style: { color: "#8e8e93" }, children: groupSpacing })] }), toolbarDivider, E.jsxs("label", { className: "h-9 flex items-center gap-2", title: "Group gap", children: [E.jsx("input", { type: "range", min: 4, max: 28, step: 1, value: V, onChange: ($) => z(Number($.target.value)), className: "w-[76px]" }), E.jsx("span", { className: "text-[11px] tabular-nums w-5 text-right", style: { color: "#8e8e93" }, children: V })] }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [modeButton("rows", "Rows", E.jsx("span", { children: "Rows" })), modeButton("masonry", "Masonry", E.jsx("span", { children: "Masonry" }))] }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["auto", "Auto"], ["2", "2"], ["3", "3"]].map(([$, te]) => columnButton($, te)) })] }), E.jsxs("div", { "code-path": "src/components/views/CanvasView.tsx:401:7", style: { transform: `translate(${h.x}px,${h.y}px) scale(${h.scale})`, transformOrigin: "0 0", willChange: "transform" }, children: [v && E.jsx("div", { "code-path": "src/components/views/CanvasView.tsx:404:11", className: "absolute pointer-events-none", style: { left: v.x, top: v.y, width: v.w, height: v.h, border: "1.5px solid #007aff", backgroundColor: "rgba(0,122,255,0.08)", borderRadius: "3px", zIndex: 50 } }), ir.map(($) => {
+  return E.jsxs("div", { "code-path": "src/components/views/CanvasView.tsx:400:5", ref: l, className: "w-full h-full overflow-hidden relative select-none", style: { cursor: _ ? "grabbing" : "grab" }, onWheel: ge, onMouseDown: we, onClick: wt, children: [E.jsxs("div", { className: "absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0 px-3 py-2 rounded-[22px]", style: { backgroundColor: "rgba(255,255,255,0.92)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)", boxShadow: "0 10px 32px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.08)" }, onMouseDown: ($) => $.stopPropagation(), onClick: ($) => $.stopPropagation(), children: [E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["left", "Group align left"], ["center", "Group align center"], ["right", "Group align right"]].map(([$, te]) => E.jsx(AURA_segmentButton, { active: b === $, title: te, onClick: () => T($), children: AURA_alignGlyph($) }, $)) }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["top", "Item align top"], ["middle", "Item align middle"], ["bottom", "Item align bottom"]].map(([$, te]) => E.jsx(AURA_segmentButton, { active: B === $, title: te, onClick: () => D($), children: AURA_alignGlyph($) }, $)) }), toolbarDivider, E.jsx("button", { type: "button", title: "Group alignment: organize groups", onClick: alignGroupsTopRow, "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 px-3 rounded-[10px] text-[12px] font-semibold transition-colors inline-flex items-center gap-2", style: { backgroundColor: "rgba(0,0,0,0.045)", color: "#1c1c1e", border: "1px solid rgba(0,0,0,0.04)" }, children: [E.jsx(Jv, { size: 14 }), E.jsx("span", { children: "Organize" })] }), E.jsx("button", { type: "button", title: "Clear custom groups", onClick: resetCanvasGroups, "data-cuelume-hover": "tick", "data-cuelume-press": "press", "data-cuelume-release": "release", className: "h-9 px-3 rounded-[10px] text-[12px] font-semibold transition-colors inline-flex items-center gap-2", style: { backgroundColor: "rgba(0,0,0,0.045)", color: "#1c1c1e", border: "1px solid rgba(0,0,0,0.04)" }, children: [E.jsx(pb, { size: 14 }), E.jsx("span", { children: "Reset" })] }), E.jsxs("label", { className: "h-9 flex items-center gap-2 pl-2", title: "Spacing between original and custom groups", children: [E.jsx("input", { type: "number", min: 0, max: 600, step: 10, value: groupPadding, onChange: ($) => setGroupPadding(Math.max(0, Number($.target.value) || 0)), className: "h-8 w-[58px] rounded-[8px] border border-black/10 bg-white/80 px-2 text-[11px] tabular-nums outline-none" })] }), E.jsxs("label", { className: "h-9 flex items-center gap-2 pl-2", title: "Spacing between custom groups", children: [E.jsx("input", { type: "range", min: 24, max: 220, step: 4, value: groupSpacing, onChange: ($) => setGroupSpacing(Number($.target.value)), className: "w-[86px]" }), E.jsx("span", { className: "text-[11px] tabular-nums w-7 text-right", style: { color: "#8e8e93" }, children: groupSpacing })] }), toolbarDivider, E.jsxs("label", { className: "h-9 flex items-center gap-2", title: "Group gap", children: [E.jsx("input", { type: "range", min: 4, max: 28, step: 1, value: V, onChange: ($) => z(Number($.target.value)), className: "w-[76px]" }), E.jsx("span", { className: "text-[11px] tabular-nums w-5 text-right", style: { color: "#8e8e93" }, children: V })] }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [modeButton("rows", "Rows", E.jsx("span", { children: "Rows" })), modeButton("masonry", "Masonry", E.jsx("span", { children: "Masonry" }))] }), toolbarDivider, E.jsxs("div", { className: "flex overflow-hidden rounded-[10px]", style: segmentStyle, children: [["auto", "Auto"], ["2", "2"], ["3", "3"]].map(([$, te]) => columnButton($, te)) })] }), E.jsxs("div", { "code-path": "src/components/views/CanvasView.tsx:401:7", style: { transform: `translate(${h.x}px,${h.y}px) scale(${h.scale})`, transformOrigin: "0 0", willChange: "transform" }, children: [v && E.jsx("div", { "code-path": "src/components/views/CanvasView.tsx:404:11", className: "absolute pointer-events-none", style: { left: v.x, top: v.y, width: v.w, height: v.h, border: "1.5px solid #007aff", backgroundColor: "rgba(0,122,255,0.08)", borderRadius: "3px", zIndex: 50 } }), ir.map(($) => {
     let te = ee === $.id || ee === $.key, me = 22, ue = A[$.id] || "", _e = te || ue.trim().length > 0;
     return E.jsxs("div", { className: "absolute", "data-group-shell": $.id, onMouseEnter: () => ce($.id), onMouseLeave: () => ce(null), onMouseDown: (ve) => {
       var pe;
