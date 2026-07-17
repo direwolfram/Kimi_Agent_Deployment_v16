@@ -17,6 +17,13 @@ export interface LibraryImage {
   name: string
   ext?: string
   mime?: string
+  type?: string
+  url?: string
+  fileURL?: string
+  website?: string
+  link?: string
+  sourceURL?: string
+  annotation?: string
   importedAt?: string
 }
 
