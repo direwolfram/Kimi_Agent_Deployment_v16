@@ -119,7 +119,12 @@ export function GridView() {
   }
 
   return (
-    <div ref={scrollRef} className="p-6 overflow-y-auto h-[calc(100vh-56px)]" style={{ contain: 'strict' }}>
+    <div
+      ref={scrollRef}
+      className="canvas-background p-6 overflow-y-auto h-[calc(100vh-56px)]"
+      data-background={state.canvasBackground}
+      style={{ contain: 'strict' }}
+    >
       <div className="relative" style={{ height: totalHeight }}>
         {visibleImages.map(({ image, x, y }) => (
           <div

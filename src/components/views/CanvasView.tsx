@@ -322,7 +322,8 @@ export function CanvasView() {
   return (
     <div
       ref={scrollRef}
-      className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden bg-[#f5f5f7] p-6 relative"
+      className="canvas-background h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden p-6 relative"
+      data-background={state.canvasBackground}
       style={{ contain: 'strict' }}
     >
       <DndContext
