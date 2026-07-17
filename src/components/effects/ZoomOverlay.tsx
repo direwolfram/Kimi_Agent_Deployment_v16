@@ -44,9 +44,11 @@ export function ZoomOverlay() {
         />
       ) : (
         <img
-          src={zoomImage.src}
+          src={mediaSrc}
           alt={zoomImage.name}
           className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+          decoding="sync"
+          fetchPriority="high"
           onClick={(e) => e.stopPropagation()}
         />
       )}
