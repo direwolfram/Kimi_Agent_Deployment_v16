@@ -7590,6 +7590,38 @@ function AURA_itemExt(a14) {
 function AURA_isVideoItem(a14) {
   return AURA_VIDEO_EXTS.has(AURA_itemExt(a14)) || String(a14?.mime || a14?.type || "").toLowerCase().startsWith("video/");
 }
+function AURA_isUrlItem(a14) {
+  let o = String(a14?.type || a14?.mime || a14?.ext || "").toLowerCase();
+  return o === "url" || o === "link" || o === "website" || o === "text/uri-list" || AURA_urlSrc(a14) && (o.includes("url") || o.includes("link") || o.includes("website"));
+}
+function AURA_urlSrc(a14) {
+  let o = [a14?.url, a14?.website, a14?.link, a14?.sourceURL, a14?.annotation, a14?.mediaSrc, a14?.fileURL, a14?.src].map((l) => String(l || "").match(/https?:\/\/[^\s"'<>]+/i)?.[0] || "").find(Boolean);
+  return o || "";
+}
+function AURA_tauriInvoke(a14, o) {
+  return typeof window < "u" && window.__TAURI__?.core?.invoke ? window.__TAURI__.core.invoke(a14, o) : null;
+}
+function AURA_hasTauriInvoke() {
+  return typeof window < "u" && !!window.__TAURI__?.core?.invoke;
+}
+function AURA_urlPreviewBounds(a14) {
+  if (!a14) return null;
+  let o = a14.getBoundingClientRect(), l = 36;
+  return { x: o.left, y: o.top + l, width: o.width, height: Math.max(1, o.height - l) };
+}
+function AURA_closeNativeUrlPreview() {
+  return AURA_tauriInvoke("aura_close_url_webview", {})?.catch(() => {
+  });
+}
+function AURA_moveNativeUrlPreview(a14) {
+  let o = AURA_urlPreviewBounds(a14);
+  return o ? AURA_tauriInvoke("aura_move_url_webview", o)?.catch(() => {
+  }) : null;
+}
+function AURA_showNativeUrlPreview(a14, o) {
+  let l = AURA_urlPreviewBounds(a14);
+  return l ? AURA_tauriInvoke("aura_show_url_webview", { url: o, ...l }) : null;
+}
 function AURA_mediaSrc(a14) {
   let o = a14?.mediaSrc || a14?.fileURL || a14?.filePath || a14?.src || "";
   if (!o || /^(blob:|data:|https?:|asset:|file:|tauri:)/i.test(o)) return o;
@@ -7764,7 +7796,7 @@ var Sv = (a14) => a14.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase(), Ev =
     return this.listData(i);
   }
   eagleItemToLibraryImage(o) {
-    return { id: o.id, name: o.name || "Untitled", src: o.thumbnailURL || o.thumbnailPath || o.filePath || `eagle://item/${o.id}`, mediaSrc: o.fileURL || o.filePath || o.thumbnailURL || o.thumbnailPath || `eagle://item/${o.id}`, width: o.width || 800, height: o.height || 600, tags: o.tags || [], url: o.url || "", annotation: o.annotation || "", ext: o.ext || "jpg", mime: o.mime || o.type || "", importedAt: AURA_importedAt(o) };
+    return { id: o.id, name: o.name || "Untitled", src: o.thumbnailURL || o.thumbnailPath || o.filePath || `eagle://item/${o.id}`, mediaSrc: o.fileURL || o.filePath || o.thumbnailURL || o.thumbnailPath || `eagle://item/${o.id}`, width: o.width || 800, height: o.height || 600, tags: o.tags || [], url: o.url || o.website || o.link || o.sourceURL || "", website: o.website || "", link: o.link || "", sourceURL: o.sourceURL || "", annotation: o.annotation || "", ext: o.ext || "jpg", mime: o.mime || o.type || "", importedAt: AURA_importedAt(o) };
   }
 }, Il = new bb();
 function xb({ size: a14 = 14, color: o = "#8e8e93" }) {
@@ -7785,7 +7817,7 @@ function wb() {
       }
       let B = AURA_normalizeEagleFolders(T.folders).length ? AURA_normalizeEagleFolders(T.folders) : AURA_normalizeEagleFolders(await Il.getFolders()), D = [{ id: "all", name: "All", children: [], modificationTime: Date.now(), tags: [] }, ...B, { id: "inbox", name: "Inbox", children: [], modificationTime: Date.now(), tags: [], iconColor: "yellow" }, { id: "trash", name: "Trash", children: [], modificationTime: Date.now(), tags: [], iconColor: "gray" }], V = (await Il.getItems(void 0, 500)).map((z) => {
         var I;
-        return { id: z.id, name: z.name || "Untitled", src: z.thumbnailURL || z.thumbnailPath || z.fileURL || z.filePath || "", mediaSrc: z.fileURL || z.filePath || z.thumbnailURL || z.thumbnailPath || "", width: z.width || 800, height: z.height || 600, tags: z.tags || [], url: z.url || "", annotation: z.annotation || "", folders: z.folders || [], folder: ((I = z.folders) == null ? void 0 : I[0]) || "", ext: z.ext || "jpg", mime: z.mime || z.type || "", importedAt: AURA_importedAt(z) };
+        return { id: z.id, name: z.name || "Untitled", src: z.thumbnailURL || z.thumbnailPath || z.fileURL || z.filePath || "", mediaSrc: z.fileURL || z.filePath || z.thumbnailURL || z.thumbnailPath || "", width: z.width || 800, height: z.height || 600, tags: z.tags || [], url: z.url || z.website || z.link || z.sourceURL || "", website: z.website || "", link: z.link || "", sourceURL: z.sourceURL || "", annotation: z.annotation || "", folders: z.folders || [], folder: ((I = z.folders) == null ? void 0 : I[0]) || "", ext: z.ext || "jpg", mime: z.mime || z.type || "", importedAt: AURA_importedAt(z) };
       });
       a14({ type: "SET_FOLDERS", payload: D }), a14({ type: "SET_IMAGES", payload: V }), l("connected-api"), c(`${V.length} items from "${T.name}"`);
     } catch (T) {
@@ -7836,7 +7868,7 @@ function wb() {
             break;
           }
           !ie && !ae && (ae = oe);
-          I.push({ id: ee.id, name: ee.name || "Untitled", src: ae || "", mediaSrc: oe || ae || "", width: ee.width || 800, height: ee.height || 600, tags: ee.tags || [], url: ee.url || "", annotation: ee.annotation || "", folders: ee.folders || [], folder: ((B = ee.folders) == null ? void 0 : B[0]) || "", ext: ee.ext || (ie ? "mp4" : "jpg"), mime: ee.mime || ee.type || "", importedAt: AURA_importedAt(ee) });
+          I.push({ id: ee.id, name: ee.name || "Untitled", src: ae || "", mediaSrc: oe || ae || "", width: ee.width || 800, height: ee.height || 600, tags: ee.tags || [], url: ee.url || ee.website || ee.link || ee.sourceURL || "", website: ee.website || "", link: ee.link || "", sourceURL: ee.sourceURL || "", annotation: ee.annotation || "", folders: ee.folders || [], folder: ((B = ee.folders) == null ? void 0 : B[0]) || "", ext: ee.ext || (ie ? "mp4" : "jpg"), mime: ee.mime || ee.type || "", importedAt: AURA_importedAt(ee) });
         } catch {
         }
         a14({ type: "SET_IMAGES", payload: I }), l("connected-file"), c(`${I.length} items from "${V?.name || "Eagle Library"}"`);
@@ -9833,13 +9865,13 @@ function X1() {
   let { state: a14, closeZoom: o, dispatch: l, filteredImages: i } = Pn(), c = K.useRef(null), f = K.useRef(null), h = K.useRef(null), g = K.useRef(null), m = K.useRef(null), p = K.useRef("idle"), q = K.useRef(false), O = K.useRef(null), [v] = K.useState(true), x = a14.zoomedImage, _ = x !== null, N = K.useMemo(() => {
     var D;
     return x ? [{ label: "Format", value: ((D = x.ext) == null ? void 0 : D.toUpperCase()) || "JPG" }, { label: "Dimensions", value: `${x.width} x ${x.height}` }, { label: "Added", value: "Jul 10, 2026 at 3:34 PM" }, { label: "Author", value: "Author" }, { label: "Location", value: "Location" }, { label: "URL", value: x.url || "https://..." }] : [];
-  }, [x]), videoPreview = AURA_isVideoItem(x), previewSrc = AURA_mediaSrc(x), b = K.useCallback(() => {
+  }, [x]), videoPreview = AURA_isVideoItem(x), urlPreview = AURA_isUrlItem(x), previewSrc = AURA_mediaSrc(x), webPreviewSrc = AURA_urlSrc(x), b = K.useCallback(() => {
     m.current && (m.current.kill(), m.current = null);
   }, []), T = K.useCallback(() => {
-    b(), p.current = "idle", o();
+    AURA_closeNativeUrlPreview(), b(), p.current = "idle", o();
   }, [b, o]), B = K.useCallback((D) => {
     if (!f.current || !c.current || !h.current || !g.current || !x) return;
-    let V = f.current, z = c.current, I = h.current, q = g.current, O = window.innerWidth, M = window.innerHeight, A = v ? 300 : 0, J = 40, ee = O - A - J * 3, ce = M - J * 2 - 50, ae = (x.height || 1) / (x.width || 1), oe = ee, ie = oe * ae;
+    let V = f.current, z = c.current, I = h.current, q = g.current, O = window.innerWidth, M = window.innerHeight, A = v ? 300 : 0, J = 40, ee = O - A - J * 3, ce = M - J * 2 - 50, ae = urlPreview ? 0.625 : (x.height || 1) / (x.width || 1), oe = ee, ie = oe * ae;
     ie > ce && (ie = ce, oe = ie / ae);
     let fe = (O - A - J * 2 - oe) / 2 + J, P = (M - 50 - ie) / 2 + 25;
     mt.set(V, { x: D.left, y: D.top, width: D.width, height: D.height, opacity: 1 }), mt.set(z, { opacity: 0 }), mt.set(I, { x: 60, opacity: 0 }), mt.set(q, { opacity: 0, y: -10 }), p.current = "opening";
@@ -9847,13 +9879,13 @@ function X1() {
       p.current = "open";
     } });
     Q.to(V, { x: fe, y: P, width: oe, height: ie, duration: 0.35, ease: "power3.out" }, 0), Q.to(z, { opacity: 1, duration: 0.25, ease: "power2.out" }, 0.05), Q.to(q, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 0.15), v && Q.to(I, { x: 0, opacity: 1, duration: 0.3, ease: "power2.out" }, 0.18), m.current = Q;
-  }, [x, v, b]), D = K.useCallback(() => {
+  }, [x, v, b, urlPreview]), D = K.useCallback(() => {
     if (!f.current || !c.current || !h.current || !g.current) {
       T();
       return;
     }
     let V = f.current, z = c.current, I = h.current, q = g.current;
-    b(), p.current = "closing";
+    AURA_closeNativeUrlPreview(), b(), p.current = "closing";
     let O = mt.getProperty(V, "x"), M = mt.getProperty(V, "y"), A = mt.getProperty(V, "width"), J = mt.getProperty(V, "height"), ee = mt.timeline({ onComplete: () => {
       p.current = "idle", o();
     } });
@@ -9872,6 +9904,19 @@ function X1() {
     let ie = ce[oe], fe = i.find((P) => P.id === ie) || a14.images.find((P) => P.id === ie);
     fe ? (AURA_playSound("tick"), l({ type: "ZOOM_IMAGE", payload: { image: fe, origin: a14.zoomOrigin, groupIds: ce } })) : AURA_playSound("error");
   }, [x, a14.zoomGroupIds, a14.images, a14.zoomOrigin, i, l]);
+  K.useEffect(() => {
+    if (!_ || !urlPreview || !webPreviewSrc || !f.current || !AURA_hasTauriInvoke()) return;
+    let ee = true, ce = 0, ae = 0, oe = () => {
+      if (!ee || !f.current) return;
+      AURA_moveNativeUrlPreview(f.current), ae = requestAnimationFrame(oe);
+    };
+    return AURA_showNativeUrlPreview(f.current, webPreviewSrc)?.catch(() => {
+    }), ae = requestAnimationFrame(oe), ce = window.setTimeout(() => {
+      cancelAnimationFrame(ae), f.current && AURA_moveNativeUrlPreview(f.current);
+    }, 900), window.addEventListener("resize", oe), () => {
+      ee = false, cancelAnimationFrame(ae), clearTimeout(ce), window.removeEventListener("resize", oe), AURA_closeNativeUrlPreview();
+    };
+  }, [_, urlPreview, webPreviewSrc, x?.id]);
   return K.useEffect(() => {
     let ee = (ce) => {
       if (!_) return;
@@ -9896,9 +9941,9 @@ function X1() {
     });
   }, [_, a14.zoomOrigin, B]), K.useEffect(() => () => b(), [b]), !_ || !x ? null : E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:201:5", "data-zoom-overlay": true, className: "fixed inset-0 z-[9998]", onClick: (ee) => {
     ee.stopPropagation(), V();
-  }, children: [E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:203:7", ref: c, className: "absolute inset-0", style: { backgroundColor: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)" } }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:206:7", ref: g, className: "absolute top-0 left-0 right-0 z-[10001] flex items-center justify-center px-4 py-3 pointer-events-none", children: E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:207:9", className: "text-center", children: [E.jsx("h3", { "code-path": "src/components/effects/ZoomOverlay.tsx:208:11", className: "text-[13px] font-semibold", style: { color: "#1c1c1e" }, children: x.name }), E.jsxs("p", { "code-path": "src/components/effects/ZoomOverlay.tsx:209:11", className: "text-[11px] mt-0.5", style: { color: "#8e8e93" }, children: [videoPreview ? "VIDEO" : "IMAGE", " - ", x.width, " x ", x.height] })] }) }), E.jsx("button", { "code-path": "src/components/effects/ZoomOverlay.tsx:214:7", onClick: (ee) => {
+  }, children: [E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:203:7", ref: c, className: "absolute inset-0", style: { backgroundColor: "rgba(255, 255, 255, 0.92)", backdropFilter: "blur(20px) saturate(180%)", WebkitBackdropFilter: "blur(20px) saturate(180%)" } }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:206:7", ref: g, className: "absolute top-0 left-0 right-0 z-[10001] flex items-center justify-center px-4 py-3 pointer-events-none", children: E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:207:9", className: "text-center", children: [E.jsx("h3", { "code-path": "src/components/effects/ZoomOverlay.tsx:208:11", className: "text-[13px] font-semibold", style: { color: "#1c1c1e" }, children: x.name }), E.jsxs("p", { "code-path": "src/components/effects/ZoomOverlay.tsx:209:11", className: "text-[11px] mt-0.5", style: { color: "#8e8e93" }, children: [urlPreview ? "URL" : videoPreview ? "VIDEO" : "IMAGE", urlPreview ? ` - ${webPreviewSrc}` : ` - ${x.width} x ${x.height}`] })] }) }), E.jsx("button", { "code-path": "src/components/effects/ZoomOverlay.tsx:214:7", onClick: (ee) => {
     ee.stopPropagation(), V();
-  }, className: "absolute top-3 right-3 z-[10002] p-2 rounded-full transition-all hover:scale-110", style: { backgroundColor: "rgba(0,0,0,0.06)" }, children: E.jsx(yb, { "code-path": "src/components/effects/ZoomOverlay.tsx:215:9", size: 16, style: { color: "#6e6e73" } }) }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:219:7", ref: f, className: "absolute z-[9999] overflow-hidden", style: { borderRadius: "16px", boxShadow: "0 24px 64px rgba(0,0,0,0.15)", willChange: "transform, width, height", backgroundColor: videoPreview ? "#000" : "#f5f5f5" }, onClick: (D) => D.stopPropagation(), children: videoPreview ? E.jsx("video", { "code-path": "src/components/effects/ZoomOverlay.tsx:220:9", ref: O, src: previewSrc, poster: x.src && x.src !== previewSrc ? x.src : void 0, className: "w-full h-full object-contain", style: { display: "block", backgroundColor: "#000" }, controls: true, playsInline: true, preload: "metadata", autoPlay: true }) : E.jsx("img", { "code-path": "src/components/effects/ZoomOverlay.tsx:220:9", src: previewSrc, alt: x.name, className: "w-full h-full object-contain", style: { backgroundColor: "#f5f5f5", display: "block" }, draggable: false, decoding: "sync", fetchPriority: "high" }) }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:224:7", ref: h, className: "absolute top-16 right-4 bottom-20 z-[10000] w-[280px]", onClick: (D) => D.stopPropagation(), children: E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:225:9", className: "rounded-[16px] p-5 h-full overflow-y-auto", style: { backgroundColor: "rgba(245, 245, 247, 0.9)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.08)" }, children: [E.jsx("h4", { "code-path": "src/components/effects/ZoomOverlay.tsx:226:11", className: "text-[13px] font-semibold mb-4", style: { color: "#1c1c1e" }, children: "Info" }), N.map((D) => E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:228:13", className: "mb-3", children: [E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:229:15", className: "text-[10px] font-medium uppercase tracking-wider mb-1", style: { color: "#8e8e93" }, children: D.label }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:230:15", className: "text-[12px]", style: { color: "#1c1c1e" }, children: D.value })] }, D.label))] }) }), E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:237:7", className: "absolute bottom-4 right-4 z-[10001] flex items-center gap-1", children: [E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:238:9", icon: E.jsx(_m, { "code-path": "src/components/effects/ZoomOverlay.tsx:238:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:239:9", icon: E.jsx(fb, { "code-path": "src/components/effects/ZoomOverlay.tsx:239:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:240:9", icon: E.jsx(km, { "code-path": "src/components/effects/ZoomOverlay.tsx:240:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:241:9", icon: E.jsx(xc, { "code-path": "src/components/effects/ZoomOverlay.tsx:241:27", size: 14 }) })] })] });
+  }, className: "absolute top-3 right-3 z-[10002] p-2 rounded-full transition-all hover:scale-110", style: { backgroundColor: "rgba(0,0,0,0.06)" }, children: E.jsx(yb, { "code-path": "src/components/effects/ZoomOverlay.tsx:215:9", size: 16, style: { color: "#6e6e73" } }) }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:219:7", ref: f, className: "absolute z-[9999] overflow-hidden", style: { borderRadius: "16px", boxShadow: "0 24px 64px rgba(0,0,0,0.15)", willChange: "transform, width, height", backgroundColor: videoPreview ? "#000" : "#f5f5f5" }, onClick: (D) => D.stopPropagation(), children: videoPreview ? E.jsx("video", { "code-path": "src/components/effects/ZoomOverlay.tsx:220:9", ref: O, src: previewSrc, poster: x.src && x.src !== previewSrc ? x.src : void 0, className: "w-full h-full object-contain", style: { display: "block", backgroundColor: "#000" }, controls: true, playsInline: true, preload: "metadata", autoPlay: true }) : urlPreview ? E.jsxs("div", { className: "w-full h-full", style: { backgroundColor: "#fff" }, children: [E.jsx("div", { className: "h-9 flex items-center px-3 text-[12px]", style: { color: "#3a3a3c", borderBottom: "1px solid #e5e5ea", backgroundColor: "#f5f5f7" }, children: E.jsx("span", { className: "truncate", children: webPreviewSrc || "No valid URL found for this item" }) }), webPreviewSrc ? E.jsx("iframe", { title: x.name || webPreviewSrc, src: webPreviewSrc, className: "w-full", style: { height: "calc(100% - 36px)", display: "block", border: 0, backgroundColor: "#fff" }, referrerPolicy: "no-referrer-when-downgrade", allow: "clipboard-read; clipboard-write; fullscreen; geolocation; microphone; camera" }) : E.jsx("div", { className: "flex items-center justify-center text-[13px]", style: { height: "calc(100% - 36px)", color: "#8e8e93" }, children: "The URL item did not include an http or https address." })] }) : E.jsx("img", { "code-path": "src/components/effects/ZoomOverlay.tsx:220:9", src: previewSrc, alt: x.name, className: "w-full h-full object-contain", style: { backgroundColor: "#f5f5f5", display: "block" }, draggable: false, decoding: "sync", fetchPriority: "high" }) }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:224:7", ref: h, className: "absolute top-16 right-4 bottom-20 z-[10000] w-[280px]", onClick: (D) => D.stopPropagation(), children: E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:225:9", className: "rounded-[16px] p-5 h-full overflow-y-auto", style: { backgroundColor: "rgba(245, 245, 247, 0.9)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", boxShadow: "0 8px 32px rgba(0,0,0,0.08)" }, children: [E.jsx("h4", { "code-path": "src/components/effects/ZoomOverlay.tsx:226:11", className: "text-[13px] font-semibold mb-4", style: { color: "#1c1c1e" }, children: "Info" }), N.map((D) => E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:228:13", className: "mb-3", children: [E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:229:15", className: "text-[10px] font-medium uppercase tracking-wider mb-1", style: { color: "#8e8e93" }, children: D.label }), E.jsx("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:230:15", className: "text-[12px]", style: { color: "#1c1c1e" }, children: D.value })] }, D.label))] }) }), E.jsxs("div", { "code-path": "src/components/effects/ZoomOverlay.tsx:237:7", className: "absolute bottom-4 right-4 z-[10001] flex items-center gap-1", children: [E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:238:9", icon: E.jsx(_m, { "code-path": "src/components/effects/ZoomOverlay.tsx:238:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:239:9", icon: E.jsx(fb, { "code-path": "src/components/effects/ZoomOverlay.tsx:239:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:240:9", icon: E.jsx(km, { "code-path": "src/components/effects/ZoomOverlay.tsx:240:27", size: 14 }) }), E.jsx(es, { "code-path": "src/components/effects/ZoomOverlay.tsx:241:9", icon: E.jsx(xc, { "code-path": "src/components/effects/ZoomOverlay.tsx:241:27", size: 14 }) })] })] });
 }
 function es({ icon: a14 }) {
   return E.jsx("button", { "code-path": "src/components/effects/ZoomOverlay.tsx:249:5", className: "p-2.5 rounded-[10px] transition-all hover:scale-110", style: { backgroundColor: "rgba(255,255,255,0.8)", backdropFilter: "blur(10px)", boxShadow: "0 2px 8px rgba(0,0,0,0.08)", color: "#6e6e73" }, children: a14 });
