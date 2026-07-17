@@ -5,6 +5,9 @@ import { useLibrary } from '../../store/LibraryContext'
 export function ZoomOverlay() {
   const { state, closeZoom } = useLibrary()
   const { zoomImage, zoomOrigin } = state
+  const ext = (zoomImage?.ext || zoomImage?.src.split(/[?#]/)[0].split('.').pop() || '').toLowerCase()
+  const isVideo = ['mp4', 'mov', 'm4v', 'webm', 'avi', 'mkv', 'ogv'].includes(ext) || zoomImage?.mime?.startsWith('video/')
+  const mediaSrc = zoomImage?.mediaSrc || zoomImage?.src || ''
 
   useEffect(() => {
     if (!zoomImage) return
@@ -28,12 +31,25 @@ export function ZoomOverlay() {
       >
         <X size={24} />
       </button>
-      <img
-        src={zoomImage.src}
-        alt={zoomImage.name}
-        className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {isVideo ? (
+        <video
+          src={mediaSrc}
+          poster={zoomImage.src !== mediaSrc ? zoomImage.src : undefined}
+          className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl bg-black"
+          controls
+          playsInline
+          preload="metadata"
+          autoPlay
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <img
+          src={zoomImage.src}
+          alt={zoomImage.name}
+          className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
     </div>
   )
 }

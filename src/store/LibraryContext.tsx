@@ -12,8 +12,11 @@ export interface Folder {
 export interface LibraryImage {
   id: string
   src: string
+  mediaSrc?: string
   folder: FolderId
   name: string
+  ext?: string
+  mime?: string
 }
 
 export type ViewMode = 'grid' | 'canvas'
