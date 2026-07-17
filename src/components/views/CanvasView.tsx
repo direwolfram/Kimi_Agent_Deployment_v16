@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -20,15 +20,33 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical, Undo2 } from 'lucide-react'
 import { useLibrary, LibraryImage } from '../../store/LibraryContext'
 
+const CLUSTER_SIZE = 6
+const CANVAS_MAX_WIDTH = 1200
+const CANVAS_PADDING = 24
+const CLUSTER_GAP = 24
+const CLUSTER_PADDING = 12
+const CLUSTER_CARD_SIZE = 120
+const CLUSTER_CARD_GAP = 8
+const CLUSTER_HEADER_HEIGHT = 24
+const CANVAS_OVERSCAN = 900
+
 interface Cluster {
   id: string
   name: string
   items: LibraryImage[]
   cols: number
   startIndex: number
+  width: number
+  height: number
 }
 
-function SortableClusterCard({
+interface PositionedCluster {
+  cluster: Cluster
+  x: number
+  y: number
+}
+
+const SortableClusterCard = memo(function SortableClusterCard({
   image,
   onZoom,
 }: {
@@ -62,6 +80,8 @@ function SortableClusterCard({
         src={image.src}
         alt={image.name}
         className="w-full h-full object-cover pointer-events-none"
+        loading="lazy"
+        decoding="async"
         draggable={false}
       />
       <div className="absolute top-1 left-1 p-1 bg-white/80 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
@@ -69,9 +89,9 @@ function SortableClusterCard({
       </div>
     </div>
   )
-}
+})
 
-function ClusterGroup({
+const ClusterGroup = memo(function ClusterGroup({
   cluster,
   onZoom,
 }: {
@@ -79,7 +99,10 @@ function ClusterGroup({
   onZoom: (image: LibraryImage) => void
 }) {
   return (
-    <div className="bg-white/60 rounded-xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-white/50">
+    <div
+      className="bg-white/60 rounded-xl p-3 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-white/50"
+      style={{ width: cluster.width, height: cluster.height, contain: 'layout paint style' }}
+    >
       <div className="text-xs font-semibold text-[#8e8e93] mb-2 px-1">{cluster.name}</div>
       <SortableContext items={cluster.items.map((i) => i.id)} strategy={rectSortingStrategy}>
         <div
@@ -96,12 +119,56 @@ function ClusterGroup({
       </SortableContext>
     </div>
   )
+})
+
+function getClusterSize(itemCount: number) {
+  const cols = itemCount <= 3 ? 2 : 3
+  const rows = Math.ceil(itemCount / cols)
+
+  return {
+    cols,
+    width: cols * CLUSTER_CARD_SIZE + Math.max(0, cols - 1) * CLUSTER_CARD_GAP + CLUSTER_PADDING * 2,
+    height:
+      CLUSTER_HEADER_HEIGHT +
+      rows * CLUSTER_CARD_SIZE +
+      Math.max(0, rows - 1) * CLUSTER_CARD_GAP +
+      CLUSTER_PADDING * 2,
+  }
+}
+
+function layoutClusters(clusters: Cluster[], viewportWidth: number) {
+  const contentWidth = Math.max(0, viewportWidth - CANVAS_PADDING * 2)
+  const layoutWidth = Math.min(CANVAS_MAX_WIDTH, contentWidth || CANVAS_MAX_WIDTH)
+  const positioned: PositionedCluster[] = []
+  let x = 0
+  let y = 0
+  let rowHeight = 0
+
+  clusters.forEach((cluster) => {
+    if (x > 0 && x + cluster.width > layoutWidth) {
+      x = 0
+      y += rowHeight + CLUSTER_GAP
+      rowHeight = 0
+    }
+
+    positioned.push({ cluster, x, y })
+    x += cluster.width + CLUSTER_GAP
+    rowHeight = Math.max(rowHeight, cluster.height)
+  })
+
+  return {
+    positioned,
+    width: layoutWidth,
+    height: positioned.length ? y + rowHeight : 0,
+  }
 }
 
 export function CanvasView() {
   const { filteredImages, reorderImages, zoomToImage, state } = useLibrary()
+  const scrollRef = useRef<HTMLDivElement | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [historySize, setHistorySize] = useState(0)
+  const [viewport, setViewport] = useState({ scrollTop: 0, height: 0, width: 0 })
   const dragStarted = useRef(false)
   const historyRef = useRef<string[][]>([])
 
@@ -118,28 +185,64 @@ export function CanvasView() {
 
   const clusters = useMemo(() => {
     const groups: Cluster[] = []
-    const clusterSize = 6
 
-    for (let i = 0; i < filteredImages.length; i += clusterSize) {
-      const chunk = filteredImages.slice(i, i + clusterSize)
-      const cols = chunk.length <= 3 ? 2 : 3
+    for (let i = 0; i < filteredImages.length; i += CLUSTER_SIZE) {
+      const chunk = filteredImages.slice(i, i + CLUSTER_SIZE)
+      const size = getClusterSize(chunk.length)
       groups.push({
         id: `cluster-${i}`,
         name: chunk.length === 1 ? chunk[0].name : 'Cluster',
         items: chunk,
-        cols,
+        cols: size.cols,
         startIndex: i,
+        width: size.width,
+        height: size.height,
       })
     }
 
     return groups
   }, [filteredImages])
 
-  const flatItems = useMemo(() => clusters.flatMap((cluster) => cluster.items), [clusters])
+  const layout = useMemo(() => layoutClusters(clusters, viewport.width), [clusters, viewport.width])
+  const visibleClusters = useMemo(() => {
+    const minY = viewport.scrollTop - CANVAS_OVERSCAN
+    const maxY = viewport.scrollTop + viewport.height + CANVAS_OVERSCAN
+
+    return layout.positioned.filter(({ cluster, y }) => y + cluster.height >= minY && y <= maxY)
+  }, [layout.positioned, viewport.height, viewport.scrollTop])
   const activeImage = useMemo(
-    () => flatItems.find((image) => image.id === activeId),
-    [activeId, flatItems]
+    () => filteredImages.find((image) => image.id === activeId),
+    [activeId, filteredImages]
   )
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      setViewport({
+        scrollTop: element.scrollTop,
+        height: element.clientHeight,
+        width: element.clientWidth,
+      })
+    }
+    const scheduleMeasure = () => {
+      if (frame) return
+      frame = requestAnimationFrame(measure)
+    }
+
+    measure()
+    element.addEventListener('scroll', scheduleMeasure, { passive: true })
+    window.addEventListener('resize', scheduleMeasure)
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+      element.removeEventListener('scroll', scheduleMeasure)
+      window.removeEventListener('resize', scheduleMeasure)
+    }
+  }, [])
 
   const findCluster = (id: string) => {
     return clusters.find((cluster) => (
@@ -211,13 +314,17 @@ export function CanvasView() {
     releaseDragLock()
   }
 
-  const handleZoom = (image: LibraryImage) => {
+  const handleZoom = useCallback((image: LibraryImage) => {
     if (dragStarted.current) return
     zoomToImage(image, { x: window.innerWidth / 2, y: window.innerHeight / 2 })
-  }
+  }, [zoomToImage])
 
   return (
-    <div className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden bg-[#f5f5f7] p-6 relative">
+    <div
+      ref={scrollRef}
+      className="h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden bg-[#f5f5f7] p-6 relative"
+      style={{ contain: 'strict' }}
+    >
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -225,13 +332,22 @@ export function CanvasView() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex flex-wrap gap-6 content-start max-w-[1200px] mx-auto">
-          {clusters.map((cluster) => (
-            <ClusterGroup
+        <div className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
+          {visibleClusters.map(({ cluster, x, y }) => (
+            <div
               key={cluster.id}
-              cluster={cluster}
-              onZoom={handleZoom}
-            />
+              className="absolute"
+              style={{
+                width: cluster.width,
+                height: cluster.height,
+                transform: `translate3d(${x}px, ${y}px, 0)`,
+              }}
+            >
+              <ClusterGroup
+                cluster={cluster}
+                onZoom={handleZoom}
+              />
+            </div>
           ))}
         </div>
 

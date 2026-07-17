@@ -132,13 +132,13 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
 
   const filteredImages = useMemo(() => {
     const ids = imageOrder[state.activeFolder] || []
-    const idSet = new Set(ids)
+    const orderIndex = new Map(ids.map((id, index) => [id, index]))
     const images = state.activeFolder === 'all'
       ? allImages.slice()
       : allImages.filter((img) => img.folder === state.activeFolder)
     const ordered = images.sort((a, b) => {
-      const ia = idSet.has(a.id) ? ids.indexOf(a.id) : Infinity
-      const ib = idSet.has(b.id) ? ids.indexOf(b.id) : Infinity
+      const ia = orderIndex.get(a.id) ?? Infinity
+      const ib = orderIndex.get(b.id) ?? Infinity
       return ia - ib
     })
     return ordered
