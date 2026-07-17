@@ -9258,20 +9258,36 @@ function q1() {
     };
     return O(), window.addEventListener("resize", O), () => window.removeEventListener("resize", O);
   }, [f]);
-  let m = (() => {
+  let m = K.useMemo(() => {
     let O = new Array(h).fill($r);
     return y.map((M) => {
       let A = M.height / M.width, J = f * A, ee = O.indexOf(Math.min(...O)), ce = $r + ee * (f + $r), ae = O[ee];
       return O[ee] += J + $r, { id: M.id, image: M, x: ce, y: ae, w: f, h: J };
     });
-  })();
+  }, [y, h, f]), U = K.useMemo(() => new Map(m.map((O) => [O.id, O])), [m]), W = K.useMemo(() => m.reduce((O, M) => Math.max(O, M.y + M.h + $r), $r), [m]), [G, Z] = K.useState({ top: 0, bottom: 1400 });
   K.useEffect(() => {
-    m.forEach((O) => {
-      let M = c.current.get(O.id);
-      M && mt.to(M, { x: O.x, y: O.y, width: O.w, height: O.h, duration: 0.2, ease: "power2.out" });
+    c.current.forEach((O, M) => {
+      let A = U.get(M);
+      A && mt.set(O, { x: A.x, y: A.y, width: A.w, height: A.h });
     });
-  }, [m.map((O) => `${O.id}:${Math.round(O.x)}:${Math.round(O.y)}`).join(",")]);
+  }, [U]);
+  K.useEffect(() => {
+    let O = i.current;
+    if (!O) return;
+    let M = 0, A = () => {
+      M = 0, Z({ top: O.scrollTop, bottom: O.scrollTop + O.clientHeight });
+    }, J = () => {
+      M || (M = requestAnimationFrame(A));
+    };
+    return A(), O.addEventListener("scroll", J, { passive: true }), window.addEventListener("resize", J), () => {
+      M && cancelAnimationFrame(M), O.removeEventListener("scroll", J), window.removeEventListener("resize", J);
+    };
+  }, [h, f, y.length]);
   let [p, v] = K.useState(/* @__PURE__ */ new Set()), [x, _] = K.useState(null), [N, b] = K.useState(false), T = K.useRef(null), B = K.useRef(false), D = K.useRef(false), V = K.useRef([]);
+  let H = K.useMemo(() => {
+    let O = G.top - 900, M = G.bottom + 900;
+    return m.filter((A) => p.has(A.id) || A.y + A.h >= O && A.y <= M);
+  }, [m, G, p]);
   V.current = m, K.useEffect(() => {
     let O = i.current;
     if (!O) return;
@@ -9364,13 +9380,13 @@ function q1() {
     };
     return window.addEventListener("keydown", O), () => window.removeEventListener("keydown", O);
   }, [p, l]);
-  return E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:192:5", ref: i, className: "w-full h-full overflow-auto relative select-none", style: { cursor: N ? "grabbing" : "default" }, onMouseDown: z, onClick: q, children: [E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:193:7", className: "relative", style: { width: $r + h * (f + $r) }, children: [x && E.jsx("div", { "code-path": "src/components/views/GridView.tsx:195:11", className: "absolute pointer-events-none z-50", style: { left: x.x, top: x.y, width: x.w, height: x.h, border: "1.5px solid #007aff", backgroundColor: "rgba(0,122,255,0.08)", borderRadius: "3px" } }), m.map((O) => {
+  return E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:192:5", ref: i, className: "w-full h-full overflow-auto relative select-none", style: { cursor: N ? "grabbing" : "default", contain: "strict" }, onMouseDown: z, onClick: q, children: [E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:193:7", className: "relative", style: { width: $r + h * (f + $r), height: W }, children: [x && E.jsx("div", { "code-path": "src/components/views/GridView.tsx:195:11", className: "absolute pointer-events-none z-50", style: { left: x.x, top: x.y, width: x.w, height: x.h, border: "1.5px solid #007aff", backgroundColor: "rgba(0,122,255,0.08)", borderRadius: "3px" } }), H.map((O) => {
     let M = p.has(O.id);
     return E.jsx("div", { "code-path": "src/components/views/GridView.tsx:200:13", "data-gitem": true, "data-id": O.id, ref: (A) => {
-      A && c.current.set(O.id, A);
-    }, className: "absolute", style: { left: 0, top: 0, zIndex: M ? 10 : 1, willChange: "transform" }, onClick: (A) => {
+      A ? c.current.set(O.id, A) : c.current.delete(O.id);
+    }, className: "absolute", style: { left: 0, top: 0, width: O.w, height: O.h, transform: `translate3d(${O.x}px,${O.y}px,0)`, zIndex: M ? 10 : 1, willChange: N && M ? "transform" : "auto", contain: "layout paint style" }, onClick: (A) => {
       A.stopPropagation(), I(O.image, A);
-    }, children: E.jsx("div", { "code-path": "src/components/views/GridView.tsx:201:15", className: "w-full h-full overflow-hidden", style: { borderRadius: "8px", boxShadow: M ? "0 4px 20px rgba(0,122,255,0.2)" : "0 2px 8px rgba(0,0,0,0.06)", outline: M ? "2.5px solid #007aff" : "none", outlineOffset: "-1px" }, children: E.jsx("img", { "code-path": "src/components/views/GridView.tsx:202:17", src: O.image.src, alt: O.image.name, className: "w-full h-full object-cover pointer-events-none", draggable: false, loading: "lazy" }) }) }, O.id);
+    }, children: E.jsx("div", { "code-path": "src/components/views/GridView.tsx:201:15", className: "w-full h-full overflow-hidden", style: { borderRadius: "8px", boxShadow: M ? "0 4px 20px rgba(0,122,255,0.2)" : "0 2px 8px rgba(0,0,0,0.06)", outline: M ? "2.5px solid #007aff" : "none", outlineOffset: "-1px" }, children: E.jsx("img", { "code-path": "src/components/views/GridView.tsx:202:17", src: O.image.src, alt: O.image.name, className: "w-full h-full object-cover pointer-events-none", draggable: false, loading: "lazy", decoding: "async" }) }) }, O.id);
   })] }), p.size > 0 && E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:209:9", className: "fixed top-4 right-4 z-[100] px-3 py-1.5 rounded-full text-[12px] font-medium", style: { backgroundColor: "#007aff", color: "#fff", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }, children: [p.size, " selected"] })] });
 }
 var or = 12, jg = 150, Yl = 40, Bg = 220, Xl = 300;
