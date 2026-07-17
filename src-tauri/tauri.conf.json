@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Aura",
@@ -22,7 +23,17 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$HOME/**",
+          "$VIDEO/**",
+          "$PICTURE/**",
+          "$DOWNLOAD/**",
+          "$TEMP/**"
+        ]
+      }
     }
   },
   "bundle": {
@@ -30,4 +41,3 @@
     "targets": "all"
   }
 }
-
