@@ -7695,11 +7695,11 @@ function _v({ children: a14 }) {
     return g;
   }, [o.images, o.activeFolder, o.searchQuery]), c = K.useCallback((g) => {
     l({ type: "SET_VIEW_MODE", payload: g });
-  }, []), f = K.useCallback((g, m) => {
-    let p = m.getBoundingClientRect(), v = [], x = m.closest?.("[data-cluster]");
+  }, []), f = K.useCallback((g, m, q) => {
+    let p = m.getBoundingClientRect(), v = Array.isArray(q) ? q.filter(Boolean) : [], x = m.closest?.("[data-cluster]");
     if (x) {
       let _ = x.getAttribute("data-cluster");
-      _ && (v = Array.from(document.querySelectorAll(`[data-cluster="${String(_).replace(/"/g, '\\"')}"]`)).map((N) => N.getAttribute("data-id")).filter(Boolean));
+      !v.length && _ && (v = Array.from(document.querySelectorAll(`[data-cluster="${String(_).replace(/"/g, '\\"')}"]`)).map((N) => N.getAttribute("data-id")).filter(Boolean));
     }
     v.length || (v = i.map((_) => _.id));
     l({ type: "SET_ZOOMING", payload: true }), l({ type: "ZOOM_IMAGE", payload: { image: g, origin: p, groupIds: v } });
@@ -9368,6 +9368,7 @@ function q1() {
       window.removeEventListener("mousemove", M), window.removeEventListener("mouseup", A);
     };
   }, []);
+  let F = K.useMemo(() => y.map((O) => O.id), [y]);
   let z = K.useCallback((O) => {
     var M, A, J;
     if (O.button !== 0) return;
@@ -9395,8 +9396,8 @@ function q1() {
       });
     } else v(/* @__PURE__ */ new Set()), T.current = { ids: [], startX: ie, startY: fe, startPos: /* @__PURE__ */ new Map() }, _({ x: ie, y: fe, w: 0, h: 0 });
   }, [p]), I = K.useCallback((O, M) => {
-    D.current || M.shiftKey || M.metaKey || l(O, M.currentTarget);
-  }, [l]), q = K.useCallback(() => {
+    D.current || M.shiftKey || M.metaKey || l(O, M.currentTarget, F);
+  }, [l, F]), q = K.useCallback(() => {
     B.current || !D.current && !N && v(/* @__PURE__ */ new Set());
   }, [N]);
   K.useEffect(() => {
@@ -9404,8 +9405,16 @@ function q1() {
       if (AURA_isTextInputTarget(M.target) || M.metaKey || M.ctrlKey || M.altKey || document.querySelector("[data-zoom-overlay]")) return;
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(M.key)) {
         M.preventDefault();
-        let A = Array.from(p)[0], J = AURA_nextItemByArrow(V.current, A, M.key);
-        J && (v(new Set([J.id])), c.current.get(J.id)?.scrollIntoView({ block: "nearest", inline: "nearest" }), AURA_playSound("tick"));
+        let A = Array.from(p)[0], J;
+        if (M.key === "ArrowLeft" || M.key === "ArrowRight") {
+          let ee = A ? F.indexOf(A) : -1, ce = M.key === "ArrowRight" ? Math.min(F.length - 1, ee + 1) : Math.max(0, ee <= 0 ? 0 : ee - 1), ae = F[ce];
+          J = V.current.find((oe) => oe.id === ae);
+        } else J = AURA_nextItemByArrow(V.current, A, M.key);
+        if (J) {
+          v(new Set([J.id]));
+          let ee = c.current.get(J.id);
+          ee ? ee.scrollIntoView({ block: "nearest", inline: "nearest" }) : i.current?.scrollTo({ top: Math.max(0, J.y - 40), behavior: "smooth" }), AURA_playSound("tick");
+        }
       }
       if (M.key === " " || M.code === "Space") {
         M.preventDefault();
@@ -9413,12 +9422,12 @@ function q1() {
         if (J) {
           v(new Set([J.id]));
           let ee = c.current.get(J.id);
-          ee && l(J.image, ee);
+          ee && l(J.image, ee, F);
         }
       }
     };
     return window.addEventListener("keydown", O), () => window.removeEventListener("keydown", O);
-  }, [p, l]);
+  }, [p, l, F]);
   return E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:192:5", ref: i, className: "w-full h-full overflow-auto relative select-none", style: { cursor: N ? "grabbing" : "default", contain: "strict" }, onMouseDown: z, onClick: q, children: [E.jsxs("div", { "code-path": "src/components/views/GridView.tsx:193:7", className: "relative", style: { width: $r + h * (f + $r), height: W }, children: [x && E.jsx("div", { "code-path": "src/components/views/GridView.tsx:195:11", className: "absolute pointer-events-none z-50", style: { left: x.x, top: x.y, width: x.w, height: x.h, border: "1.5px solid #007aff", backgroundColor: "rgba(0,122,255,0.08)", borderRadius: "3px" } }), H.map((O) => {
     let M = p.has(O.id);
     return E.jsx("div", { "code-path": "src/components/views/GridView.tsx:200:13", "data-gitem": true, "data-id": O.id, ref: (A) => {
