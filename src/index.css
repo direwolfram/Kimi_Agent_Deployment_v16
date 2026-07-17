@@ -11,6 +11,40 @@ body {
   position: relative;
 }
 
+.canvas-background {
+  background-color: #f5f5f7;
+}
+
+.canvas-background[data-background='dots'] {
+  background-image: radial-gradient(circle, rgba(60, 60, 67, 0.18) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+.canvas-background[data-background='squares'] {
+  background-image:
+    linear-gradient(rgba(60, 60, 67, 0.11) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 60, 67, 0.11) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.canvas-background[data-background='blueprint'] {
+  background-color: #eef6ff;
+  background-image:
+    linear-gradient(rgba(0, 122, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 122, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(0, 122, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 122, 255, 0.08) 1px, transparent 1px);
+  background-size: 96px 96px, 96px 96px, 24px 24px, 24px 24px;
+}
+
+.canvas-background[data-background='paper'] {
+  background-color: #f7f6f1;
+  background-image:
+    linear-gradient(rgba(120, 110, 95, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 110, 95, 0.05) 1px, transparent 1px);
+  background-size: 100% 28px, 28px 100%;
+}
+
 .cluster-card::after {
   content: '';
   position: absolute;

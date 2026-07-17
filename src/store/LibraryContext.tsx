@@ -29,11 +29,13 @@ export interface LibraryImage {
 
 export type ViewMode = 'grid' | 'canvas'
 export type ImportSortDirection = 'desc' | 'asc'
+export type CanvasBackground = 'plain' | 'dots' | 'squares' | 'blueprint' | 'paper'
 
 export interface LibraryState {
   activeFolder: FolderId
   viewMode: ViewMode
   importSortDirection: ImportSortDirection
+  canvasBackground: CanvasBackground
   zoomImage: LibraryImage | null
   zoomOrigin: { x: number; y: number } | null
 }
@@ -42,6 +44,7 @@ type Action =
   | { type: 'SET_ACTIVE_FOLDER'; payload: FolderId }
   | { type: 'SET_VIEW_MODE'; payload: ViewMode }
   | { type: 'SET_IMPORT_SORT_DIRECTION'; payload: ImportSortDirection }
+  | { type: 'SET_CANVAS_BACKGROUND'; payload: CanvasBackground }
   | { type: 'ZOOM_IMAGE'; payload: { image: LibraryImage | null; origin: { x: number; y: number } | null } }
   | { type: 'CLOSE_ZOOM' }
   | { type: 'REORDER_IMAGES'; payload: { folder: FolderId; ids: string[] } }
@@ -50,6 +53,7 @@ const initialState: LibraryState = {
   activeFolder: 'all',
   viewMode: 'canvas',
   importSortDirection: 'desc',
+  canvasBackground: 'plain',
   zoomImage: null,
   zoomOrigin: null,
 }
@@ -62,6 +66,8 @@ function libraryReducer(state: LibraryState, action: Action): LibraryState {
       return { ...state, viewMode: action.payload }
     case 'SET_IMPORT_SORT_DIRECTION':
       return { ...state, importSortDirection: action.payload }
+    case 'SET_CANVAS_BACKGROUND':
+      return { ...state, canvasBackground: action.payload }
     case 'ZOOM_IMAGE':
       return { ...state, zoomImage: action.payload.image, zoomOrigin: action.payload.origin }
     case 'CLOSE_ZOOM':
@@ -112,6 +118,7 @@ interface LibraryContextValue {
   setActiveFolder: (id: FolderId) => void
   setViewMode: (mode: ViewMode) => void
   setImportSortDirection: (direction: ImportSortDirection) => void
+  setCanvasBackground: (background: CanvasBackground) => void
   zoomToImage: (image: LibraryImage, origin: { x: number; y: number }) => void
   closeZoom: () => void
   reorderImages: (folder: FolderId, ids: string[]) => void
@@ -156,6 +163,10 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_IMPORT_SORT_DIRECTION', payload: direction })
   }, [])
 
+  const setCanvasBackground = useCallback((background: CanvasBackground) => {
+    dispatch({ type: 'SET_CANVAS_BACKGROUND', payload: background })
+  }, [])
+
   const zoomToImage = useCallback((image: LibraryImage, origin: { x: number; y: number }) => {
     dispatch({ type: 'ZOOM_IMAGE', payload: { image, origin } })
   }, [])
@@ -177,6 +188,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         setActiveFolder,
         setViewMode,
         setImportSortDirection,
+        setCanvasBackground,
         zoomToImage,
         closeZoom,
         reorderImages,
