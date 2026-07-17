@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && cp assets/index.js dist/assets/index.js && cp assets/index.css dist/assets/index.css",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
