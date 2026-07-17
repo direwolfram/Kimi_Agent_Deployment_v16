@@ -17,13 +17,16 @@ export interface LibraryImage {
   name: string
   ext?: string
   mime?: string
+  importedAt?: string
 }
 
 export type ViewMode = 'grid' | 'canvas'
+export type ImportSortDirection = 'desc' | 'asc'
 
 export interface LibraryState {
   activeFolder: FolderId
   viewMode: ViewMode
+  importSortDirection: ImportSortDirection
   zoomImage: LibraryImage | null
   zoomOrigin: { x: number; y: number } | null
 }
@@ -31,6 +34,7 @@ export interface LibraryState {
 type Action =
   | { type: 'SET_ACTIVE_FOLDER'; payload: FolderId }
   | { type: 'SET_VIEW_MODE'; payload: ViewMode }
+  | { type: 'SET_IMPORT_SORT_DIRECTION'; payload: ImportSortDirection }
   | { type: 'ZOOM_IMAGE'; payload: { image: LibraryImage | null; origin: { x: number; y: number } | null } }
   | { type: 'CLOSE_ZOOM' }
   | { type: 'REORDER_IMAGES'; payload: { folder: FolderId; ids: string[] } }
@@ -38,6 +42,7 @@ type Action =
 const initialState: LibraryState = {
   activeFolder: 'all',
   viewMode: 'canvas',
+  importSortDirection: 'desc',
   zoomImage: null,
   zoomOrigin: null,
 }
@@ -48,6 +53,8 @@ function libraryReducer(state: LibraryState, action: Action): LibraryState {
       return { ...state, activeFolder: action.payload }
     case 'SET_VIEW_MODE':
       return { ...state, viewMode: action.payload }
+    case 'SET_IMPORT_SORT_DIRECTION':
+      return { ...state, importSortDirection: action.payload }
     case 'ZOOM_IMAGE':
       return { ...state, zoomImage: action.payload.image, zoomOrigin: action.payload.origin }
     case 'CLOSE_ZOOM':
@@ -69,26 +76,26 @@ export const allFolders: Folder[] = [
 ]
 
 export const allImages: LibraryImage[] = [
-  { id: 'ui-01', src: './images/ui-dashboard-01.jpg', folder: 'ui-screens', name: 'Dashboard 01' },
-  { id: 'ui-02', src: './images/ui-dashboard-02.jpg', folder: 'ui-screens', name: 'Dashboard 02' },
-  { id: 'ui-03', src: './images/ui-dashboard-03.jpg', folder: 'ui-screens', name: 'Dashboard 03' },
-  { id: 'ui-04', src: './images/ui-dashboard-04.jpg', folder: 'ui-screens', name: 'Dashboard 04' },
-  { id: 'ui-05', src: './images/ui-dashboard-05.jpg', folder: 'ui-screens', name: 'Dashboard 05' },
-  { id: 'ui-06', src: './images/ui-dashboard-06.jpg', folder: 'ui-screens', name: 'Dashboard 06' },
-  { id: 'ui-07', src: './images/ui-dashboard-07.jpg', folder: 'ui-screens', name: 'Dashboard 07' },
-  { id: 'ui-08', src: './images/ui-dashboard-08.jpg', folder: 'ui-screens', name: 'Dashboard 08' },
-  { id: 'ui-09', src: './images/ui-dashboard-09.jpg', folder: 'ui-screens', name: 'Dashboard 09' },
-  { id: 'icon-01', src: './images/icon-set-01.jpg', folder: 'app-icons', name: 'Icon Set' },
-  { id: 'typo-01', src: './images/typography-01.jpg', folder: 'typography', name: 'Typography 01' },
-  { id: 'typo-02', src: './images/typography-02.jpg', folder: 'typography', name: 'Typography 02' },
-  { id: 'typo-03', src: './images/typography-03.jpg', folder: 'typography', name: 'Typography 03' },
-  { id: '3d-01', src: './images/3d-render-01.jpg', folder: '3d-assets', name: '3D Render 01' },
-  { id: '3d-02', src: './images/3d-render-02.jpg', folder: '3d-assets', name: '3D Render 02' },
-  { id: '3d-03', src: './images/3d-render-03.jpg', folder: '3d-assets', name: '3D Render 03' },
-  { id: '3d-04', src: './images/3d-render-04.jpg', folder: '3d-assets', name: '3D Render 04' },
-  { id: 'pattern-01', src: './images/abstract-pattern-01.jpg', folder: 'patterns', name: 'Pattern 01' },
-  { id: 'pattern-02', src: './images/abstract-pattern-02.jpg', folder: 'patterns', name: 'Pattern 02' },
-  { id: 'pattern-03', src: './images/abstract-pattern-03.jpg', folder: 'patterns', name: 'Pattern 03' },
+  { id: 'ui-01', src: './images/ui-dashboard-01.jpg', folder: 'ui-screens', name: 'Dashboard 01', importedAt: '2026-07-17T09:00:00Z' },
+  { id: 'ui-02', src: './images/ui-dashboard-02.jpg', folder: 'ui-screens', name: 'Dashboard 02', importedAt: '2026-07-17T09:05:00Z' },
+  { id: 'ui-03', src: './images/ui-dashboard-03.jpg', folder: 'ui-screens', name: 'Dashboard 03', importedAt: '2026-07-17T09:10:00Z' },
+  { id: 'ui-04', src: './images/ui-dashboard-04.jpg', folder: 'ui-screens', name: 'Dashboard 04', importedAt: '2026-07-17T09:15:00Z' },
+  { id: 'ui-05', src: './images/ui-dashboard-05.jpg', folder: 'ui-screens', name: 'Dashboard 05', importedAt: '2026-07-17T09:20:00Z' },
+  { id: 'ui-06', src: './images/ui-dashboard-06.jpg', folder: 'ui-screens', name: 'Dashboard 06', importedAt: '2026-07-17T09:25:00Z' },
+  { id: 'ui-07', src: './images/ui-dashboard-07.jpg', folder: 'ui-screens', name: 'Dashboard 07', importedAt: '2026-07-17T09:30:00Z' },
+  { id: 'ui-08', src: './images/ui-dashboard-08.jpg', folder: 'ui-screens', name: 'Dashboard 08', importedAt: '2026-07-17T09:35:00Z' },
+  { id: 'ui-09', src: './images/ui-dashboard-09.jpg', folder: 'ui-screens', name: 'Dashboard 09', importedAt: '2026-07-17T09:40:00Z' },
+  { id: 'icon-01', src: './images/icon-set-01.jpg', folder: 'app-icons', name: 'Icon Set', importedAt: '2026-07-17T09:45:00Z' },
+  { id: 'typo-01', src: './images/typography-01.jpg', folder: 'typography', name: 'Typography 01', importedAt: '2026-07-17T09:50:00Z' },
+  { id: 'typo-02', src: './images/typography-02.jpg', folder: 'typography', name: 'Typography 02', importedAt: '2026-07-17T09:55:00Z' },
+  { id: 'typo-03', src: './images/typography-03.jpg', folder: 'typography', name: 'Typography 03', importedAt: '2026-07-17T10:00:00Z' },
+  { id: '3d-01', src: './images/3d-render-01.jpg', folder: '3d-assets', name: '3D Render 01', importedAt: '2026-07-17T10:05:00Z' },
+  { id: '3d-02', src: './images/3d-render-02.jpg', folder: '3d-assets', name: '3D Render 02', importedAt: '2026-07-17T10:10:00Z' },
+  { id: '3d-03', src: './images/3d-render-03.jpg', folder: '3d-assets', name: '3D Render 03', importedAt: '2026-07-17T10:15:00Z' },
+  { id: '3d-04', src: './images/3d-render-04.jpg', folder: '3d-assets', name: '3D Render 04', importedAt: '2026-07-17T10:20:00Z' },
+  { id: 'pattern-01', src: './images/abstract-pattern-01.jpg', folder: 'patterns', name: 'Pattern 01', importedAt: '2026-07-17T10:25:00Z' },
+  { id: 'pattern-02', src: './images/abstract-pattern-02.jpg', folder: 'patterns', name: 'Pattern 02', importedAt: '2026-07-17T10:30:00Z' },
+  { id: 'pattern-03', src: './images/abstract-pattern-03.jpg', folder: 'patterns', name: 'Pattern 03', importedAt: '2026-07-17T10:35:00Z' },
 ]
 
 interface LibraryContextValue {
@@ -97,6 +104,7 @@ interface LibraryContextValue {
   filteredImages: LibraryImage[]
   setActiveFolder: (id: FolderId) => void
   setViewMode: (mode: ViewMode) => void
+  setImportSortDirection: (direction: ImportSortDirection) => void
   zoomToImage: (image: LibraryImage, origin: { x: number; y: number }) => void
   closeZoom: () => void
   reorderImages: (folder: FolderId, ids: string[]) => void
@@ -137,6 +145,10 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'SET_VIEW_MODE', payload: mode })
   }, [])
 
+  const setImportSortDirection = useCallback((direction: ImportSortDirection) => {
+    dispatch({ type: 'SET_IMPORT_SORT_DIRECTION', payload: direction })
+  }, [])
+
   const zoomToImage = useCallback((image: LibraryImage, origin: { x: number; y: number }) => {
     dispatch({ type: 'ZOOM_IMAGE', payload: { image, origin } })
   }, [])
@@ -157,6 +169,7 @@ export function LibraryProvider({ children }: { children: React.ReactNode }) {
         filteredImages,
         setActiveFolder,
         setViewMode,
+        setImportSortDirection,
         zoomToImage,
         closeZoom,
         reorderImages,

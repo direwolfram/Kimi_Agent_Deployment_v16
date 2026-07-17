@@ -1,5 +1,22 @@
 import React from 'react'
-import { useLibrary, LibraryImage } from '../../store/LibraryContext'
+import { useLibrary, LibraryImage, ImportSortDirection } from '../../store/LibraryContext'
+
+function getImportedTime(image: LibraryImage) {
+  const time = image.importedAt ? new Date(image.importedAt).getTime() : 0
+  return Number.isFinite(time) ? time : 0
+}
+
+function sortByDateImported(images: LibraryImage[], direction: ImportSortDirection) {
+  const directionMultiplier = direction === 'asc' ? 1 : -1
+
+  return images
+    .map((image, index) => ({ image, index }))
+    .sort((a, b) => {
+      const dateDelta = (getImportedTime(a.image) - getImportedTime(b.image)) * directionMultiplier
+      return dateDelta || a.index - b.index
+    })
+    .map(({ image }) => image)
+}
 
 function ImageCard({ image, onClick }: { image: LibraryImage; onClick?: (image: LibraryImage, e: React.MouseEvent) => void }) {
   return (
@@ -19,7 +36,11 @@ function ImageCard({ image, onClick }: { image: LibraryImage; onClick?: (image: 
 }
 
 export function GridView() {
-  const { filteredImages, zoomToImage } = useLibrary()
+  const { filteredImages, zoomToImage, state } = useLibrary()
+  const gridImages = React.useMemo(
+    () => sortByDateImported(filteredImages, state.importSortDirection),
+    [filteredImages, state.importSortDirection]
+  )
 
   const handleClick = (image: LibraryImage, e: React.MouseEvent) => {
     const rect = (e.target as HTMLElement).getBoundingClientRect()
@@ -32,7 +53,7 @@ export function GridView() {
   return (
     <div className="p-6 overflow-y-auto h-[calc(100vh-56px)]">
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 auto-rows-[200px]">
-        {filteredImages.map((image) => (
+        {gridImages.map((image) => (
           <ImageCard key={image.id} image={image} onClick={handleClick} />
         ))}
       </div>
