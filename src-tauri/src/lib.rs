@@ -179,6 +179,43 @@ fn json_field(value: &Value, keys: &[&str], fallback: Value) -> Value {
         .unwrap_or(fallback)
 }
 
+fn set_comment_text(value: &mut Value, index: usize, text: &str) -> Result<(), String> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "Item metadata is not a JSON object".to_string())?;
+    let key = ["comments", "commentList", "commentsList", "annotations", "annotationRegions"]
+        .iter()
+        .find(|key| object.get(**key).is_some_and(|value| value.is_array()))
+        .copied()
+        .unwrap_or("comments");
+    let comments = object.entry(key).or_insert_with(|| json!([]));
+    let comments = comments
+        .as_array_mut()
+        .ok_or_else(|| "Comment metadata is not an array".to_string())?;
+    if index >= comments.len() {
+        return Err("Comment index is outside the stored comments array".to_string());
+    }
+    if !comments[index].is_object() {
+        comments[index] = json!({});
+    }
+    if let Some(comment) = comments[index].as_object_mut() {
+        if comment.contains_key("text") {
+            comment.insert("text".to_string(), json!(text));
+        } else if comment.contains_key("comment") {
+            comment.insert("comment".to_string(), json!(text));
+        } else if comment.contains_key("annotation") {
+            comment.insert("annotation".to_string(), json!(text));
+        } else if comment.contains_key("note") {
+            comment.insert("note".to_string(), json!(text));
+        } else if comment.contains_key("content") {
+            comment.insert("content".to_string(), json!(text));
+        } else {
+            comment.insert("text".to_string(), json!(text));
+        }
+    }
+    Ok(())
+}
+
 fn folder_name_from_id(folder_id: &str) -> String {
     folder_id
         .rsplit(['/', '\\', ':'])
@@ -334,6 +371,7 @@ async fn aura_scan_eagle_library(path: String) -> Result<String, String> {
                 "annotations": json_field(&metadata, &["annotations", "annotationRegions"], json!([])),
                 "regions": json_field(&metadata, &["regions", "highlights", "markups"], json!([])),
                 "metadata": metadata.clone(),
+                "metadataPath": metadata_path.to_string_lossy(),
                 "folders": folders,
                 "folder": folder,
                 "ext": string_field(&metadata, &["ext"]),
@@ -420,6 +458,28 @@ async fn aura_find_eagle_library(library_name: String) -> Result<String, String>
 }
 
 #[tauri::command]
+async fn aura_update_eagle_comment(metadata_path: String, index: usize, text: String) -> Result<(), String> {
+    let path = PathBuf::from(metadata_path);
+    if path
+        .file_name()
+        .and_then(|value| value.to_str())
+        != Some("metadata.json")
+    {
+        return Err("Refusing to update a non-metadata.json file".to_string());
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|error| format!("Could not read item metadata: {error}"))?;
+    let mut metadata: Value = serde_json::from_str(&raw)
+        .map_err(|error| format!("Invalid item metadata JSON: {error}"))?;
+    set_comment_text(&mut metadata, index, &text)?;
+    let next = serde_json::to_string_pretty(&metadata)
+        .map_err(|error| format!("Could not serialize item metadata: {error}"))?;
+    fs::write(&path, format!("{next}\n"))
+        .map_err(|error| format!("Could not write item metadata: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn aura_pick_eagle_library() -> Result<String, String> {
     let Some(path) = rfd::FileDialog::new()
         .set_title("Select Eagle .library folder")
@@ -454,6 +514,7 @@ pub fn run() {
             aura_move_url_webview,
             aura_close_url_webview,
             aura_scan_eagle_library,
+            aura_update_eagle_comment,
             aura_find_eagle_library,
             aura_pick_eagle_library
         ])
