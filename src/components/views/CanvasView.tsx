@@ -508,7 +508,7 @@ export function CanvasView() {
       ref={scrollRef}
       className="canvas-background h-[calc(100vh-56px)] overflow-y-auto overflow-x-hidden p-6 relative"
       data-background={state.canvasBackground}
-      style={{ contain: 'strict' }}
+      style={{ contain: 'strict', overscrollBehavior: 'contain' }}
     >
       {sortingEnabled ? (
         <DndContext
