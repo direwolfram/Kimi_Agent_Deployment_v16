@@ -172,6 +172,13 @@ fn string_array_field(value: &Value, key: &str) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+fn json_field(value: &Value, keys: &[&str], fallback: Value) -> Value {
+    keys.iter()
+        .find_map(|key| value.get(*key))
+        .cloned()
+        .unwrap_or(fallback)
+}
+
 fn folder_name_from_id(folder_id: &str) -> String {
     folder_id
         .rsplit(['/', '\\', ':'])
@@ -322,6 +329,11 @@ async fn aura_scan_eagle_library(path: String) -> Result<String, String> {
                 "link": string_field(&metadata, &["link"]),
                 "sourceURL": string_field(&metadata, &["sourceURL"]),
                 "annotation": string_field(&metadata, &["annotation"]),
+                "comments": json_field(&metadata, &["comments", "commentList", "commentsList"], json!([])),
+                "comment": json_field(&metadata, &["comment"], json!(null)),
+                "annotations": json_field(&metadata, &["annotations", "annotationRegions"], json!([])),
+                "regions": json_field(&metadata, &["regions", "highlights", "markups"], json!([])),
+                "metadata": metadata.clone(),
                 "folders": folders,
                 "folder": folder,
                 "ext": string_field(&metadata, &["ext"]),
