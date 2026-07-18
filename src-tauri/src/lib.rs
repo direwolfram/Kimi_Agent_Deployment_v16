@@ -1,6 +1,7 @@
 use tauri::{
-    webview::WebviewBuilder, LogicalPosition, LogicalSize, Manager, WebviewUrl, Window,
+    webview::WebviewBuilder, AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, Window,
 };
+use tauri_plugin_opener::OpenerExt;
 use serde_json::{json, Value};
 use std::{collections::BTreeSet, env, fs, path::{Path, PathBuf}};
 
@@ -61,6 +62,31 @@ async fn aura_close_url_webview(window: Window) -> Result<(), String> {
     if let Some(webview) = window.get_webview(URL_PREVIEW_WEBVIEW) {
         webview.close().map_err(|error| error.to_string())?;
     }
+    Ok(())
+}
+
+#[tauri::command]
+async fn aura_open_eagle_item(app: AppHandle, item_id: String) -> Result<(), String> {
+    let item_id = item_id.trim();
+    if item_id.is_empty() {
+        return Err("Missing Eagle item ID".to_string());
+    }
+
+    let encoded_id = item_id
+        .bytes()
+        .flat_map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                vec![byte as char]
+            }
+            _ => format!("%{byte:02X}").chars().collect(),
+        })
+        .collect::<String>();
+    let url = format!("http://localhost:41595/item?id={encoded_id}");
+
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| format!("Could not open Eagle item: {error}"))?;
+
     Ok(())
 }
 
@@ -513,6 +539,7 @@ pub fn run() {
             aura_show_url_webview,
             aura_move_url_webview,
             aura_close_url_webview,
+            aura_open_eagle_item,
             aura_scan_eagle_library,
             aura_update_eagle_comment,
             aura_find_eagle_library,
