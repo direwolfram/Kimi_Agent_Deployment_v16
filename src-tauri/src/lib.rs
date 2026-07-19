@@ -242,6 +242,38 @@ fn set_comment_text(value: &mut Value, index: usize, text: &str) -> Result<(), S
     Ok(())
 }
 
+fn set_comment_done(value: &mut Value, index: usize, done: bool) -> Result<(), String> {
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| "Item metadata is not a JSON object".to_string())?;
+    let key = ["comments", "commentList", "commentsList", "annotations", "annotationRegions"]
+        .iter()
+        .find(|key| object.get(**key).is_some_and(|value| value.is_array()))
+        .copied()
+        .unwrap_or("comments");
+    let comments = object.entry(key).or_insert_with(|| json!([]));
+    let comments = comments
+        .as_array_mut()
+        .ok_or_else(|| "Comment metadata is not an array".to_string())?;
+    if index >= comments.len() {
+        return Err("Comment index is outside the stored comments array".to_string());
+    }
+    if !comments[index].is_object() {
+        comments[index] = json!({});
+    }
+    let Some(comment) = comments[index].as_object_mut() else {
+        return Err("Comment metadata is not an object".to_string());
+    };
+    let aura = comment.entry("aura").or_insert_with(|| json!({}));
+    if !aura.is_object() {
+        *aura = json!({});
+    }
+    aura.as_object_mut()
+        .ok_or_else(|| "Comment aura metadata is not an object".to_string())?
+        .insert("done".to_string(), json!(done));
+    Ok(())
+}
+
 fn folder_name_from_id(folder_id: &str) -> String {
     folder_id
         .rsplit(['/', '\\', ':'])
@@ -506,6 +538,28 @@ async fn aura_update_eagle_comment(metadata_path: String, index: usize, text: St
 }
 
 #[tauri::command]
+async fn aura_update_eagle_comment_done(metadata_path: String, index: usize, done: bool) -> Result<(), String> {
+    let path = PathBuf::from(metadata_path);
+    if path
+        .file_name()
+        .and_then(|value| value.to_str())
+        != Some("metadata.json")
+    {
+        return Err("Refusing to update a non-metadata.json file".to_string());
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|error| format!("Could not read item metadata: {error}"))?;
+    let mut metadata: Value = serde_json::from_str(&raw)
+        .map_err(|error| format!("Invalid item metadata JSON: {error}"))?;
+    set_comment_done(&mut metadata, index, done)?;
+    let next = serde_json::to_string_pretty(&metadata)
+        .map_err(|error| format!("Could not serialize item metadata: {error}"))?;
+    fs::write(&path, format!("{next}\n"))
+        .map_err(|error| format!("Could not write item metadata: {error}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn aura_pick_eagle_library() -> Result<String, String> {
     let Some(path) = rfd::FileDialog::new()
         .set_title("Select Eagle .library folder")
@@ -542,6 +596,7 @@ pub fn run() {
             aura_open_eagle_item,
             aura_scan_eagle_library,
             aura_update_eagle_comment,
+            aura_update_eagle_comment_done,
             aura_find_eagle_library,
             aura_pick_eagle_library
         ])
