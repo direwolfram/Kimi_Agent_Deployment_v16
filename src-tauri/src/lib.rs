@@ -90,6 +90,20 @@ async fn aura_open_eagle_item(app: AppHandle, item_id: String) -> Result<(), Str
     Ok(())
 }
 
+#[tauri::command]
+async fn aura_open_external_url(app: AppHandle, url: String) -> Result<(), String> {
+    let url = url.trim();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Only http and https URLs can be opened".to_string());
+    }
+
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|error| format!("Could not open URL: {error}"))?;
+
+    Ok(())
+}
+
 fn is_thumbnail_file(path: &Path) -> bool {
     let name = path
         .file_name()
@@ -683,6 +697,7 @@ pub fn run() {
             aura_move_url_webview,
             aura_close_url_webview,
             aura_open_eagle_item,
+            aura_open_external_url,
             aura_scan_eagle_library,
             aura_update_eagle_comment,
             aura_update_eagle_comment_done,
