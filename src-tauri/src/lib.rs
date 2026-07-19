@@ -178,6 +178,66 @@ fn string_field(value: &Value, keys: &[&str]) -> String {
         .to_string()
 }
 
+fn bool_field(value: &Value, keys: &[&str]) -> bool {
+    keys.iter()
+        .find_map(|key| value.get(*key))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn lower_string_field(value: &Value, keys: &[&str]) -> String {
+    string_field(value, keys).trim().to_lowercase()
+}
+
+fn path_has_trash_component(path: &Path) -> bool {
+    path.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .map(|part| {
+                let part = part.trim().to_lowercase();
+                part == "trash" || part == ".trash" || part == "deleted" || part == ".deleted"
+            })
+            .unwrap_or(false)
+    })
+}
+
+fn folder_ref_is_trash(folder_id: &str, folder_name: &str) -> bool {
+    [folder_id, folder_name].iter().any(|value| {
+        let value = value.trim().to_lowercase();
+        value == "trash" || value == ".trash" || value == "deleted" || value == "trashed"
+    })
+}
+
+fn is_deleted_item_metadata(value: &Value, metadata_path: &Path) -> bool {
+    if path_has_trash_component(metadata_path)
+        || bool_field(
+            value,
+            &[
+                "deleted",
+                "isDeleted",
+                "trashed",
+                "isTrashed",
+                "removed",
+                "isRemoved",
+                "inTrash",
+            ],
+        )
+    {
+        return true;
+    }
+
+    ["status", "state", "itemStatus", "syncStatus"]
+        .iter()
+        .map(|key| lower_string_field(value, &[*key]))
+        .any(|status| {
+            matches!(
+                status.as_str(),
+                "deleted" | "trash" | "trashed" | "removed" | "in_trash" | "in-trash"
+            )
+        })
+}
+
 fn number_field(value: &Value, keys: &[&str], fallback: u64) -> u64 {
     keys.iter()
         .find_map(|key| value.get(*key))
@@ -361,6 +421,9 @@ async fn aura_scan_eagle_library(path: String) -> Result<String, String> {
             if id.is_empty() {
                 return None;
             }
+            if is_deleted_item_metadata(&metadata, &metadata_path) {
+                return None;
+            }
 
             let parent = metadata_path.parent()?;
             let mut thumbnail = String::new();
@@ -388,6 +451,12 @@ async fn aura_scan_eagle_library(path: String) -> Result<String, String> {
             }
 
             let folder_refs = folder_refs_from_metadata(&metadata);
+            if folder_refs
+                .iter()
+                .any(|(folder_id, folder_name)| folder_ref_is_trash(folder_id, folder_name))
+            {
+                return None;
+            }
             for folder_ref in &folder_refs {
                 referenced_folders.insert(folder_ref.clone());
             }
