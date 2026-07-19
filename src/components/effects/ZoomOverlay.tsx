@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Pause, Play, X } from 'lucide-react'
+import { ExternalLink, Pause, Play, X } from 'lucide-react'
 import { useLibrary } from '../../store/LibraryContext'
 
 function formatVideoTime(value: number) {
@@ -7,6 +7,12 @@ function formatVideoTime(value: number) {
   const minutes = Math.floor(value / 60)
   const seconds = Math.floor(value % 60)
   return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
+
+function firstUrl(...values: Array<string | undefined>) {
+  return values
+    .map((value) => (value || '').match(/https?:\/\/[^\s"'<>]+/i)?.[0] || '')
+    .find(Boolean) || ''
 }
 
 export function ZoomOverlay() {
@@ -22,7 +28,7 @@ export function ZoomOverlay() {
   const urlType = (zoomImage?.type || zoomImage?.mime || zoomImage?.ext || '').toLowerCase()
   const isUrl = urlType === 'url' || urlType === 'link' || urlType === 'website' || urlType === 'text/uri-list'
   const mediaSrc = zoomImage?.mediaSrc || zoomImage?.src || ''
-  const webSrc = [
+  const webSrc = firstUrl(
     zoomImage?.url,
     zoomImage?.website,
     zoomImage?.link,
@@ -30,8 +36,8 @@ export function ZoomOverlay() {
     zoomImage?.annotation,
     zoomImage?.mediaSrc,
     zoomImage?.fileURL,
-    zoomImage?.src,
-  ].map((value) => (value || '').match(/https?:\/\/[^\s"'<>]+/i)?.[0] || '').find(Boolean) || ''
+    zoomImage?.src
+  )
 
   useEffect(() => {
     if (!zoomImage) return
@@ -73,6 +79,19 @@ export function ZoomOverlay() {
       >
         <X size={24} />
       </button>
+      {!isUrl && webSrc && (
+        <a
+          href={webSrc}
+          target="_blank"
+          rel="noreferrer"
+          className="absolute top-4 left-4 max-w-[min(520px,calc(100vw-96px))] inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-medium text-[#1c1c1e] shadow-lg hover:bg-white"
+          onClick={(e) => e.stopPropagation()}
+          title={webSrc}
+        >
+          <ExternalLink size={14} className="shrink-0" />
+          <span className="truncate">{webSrc}</span>
+        </a>
+      )}
       {isVideo ? (
         <div className="relative overflow-hidden rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <video
@@ -105,7 +124,20 @@ export function ZoomOverlay() {
       ) : isUrl ? (
         <div className="w-[90vw] h-[90vh] overflow-hidden rounded-lg shadow-2xl bg-white" onClick={(e) => e.stopPropagation()}>
           <div className="h-9 flex items-center px-3 text-xs text-[#3a3a3c] border-b border-[#e5e5ea] bg-[#f5f5f7]">
-            <span className="truncate">{webSrc || 'No valid URL found for this item'}</span>
+            {webSrc ? (
+              <a
+                href={webSrc}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-w-0 items-center gap-1.5 hover:text-[#007aff]"
+                title={webSrc}
+              >
+                <ExternalLink size={13} className="shrink-0" />
+                <span className="truncate">{webSrc}</span>
+              </a>
+            ) : (
+              <span className="truncate">No valid URL found for this item</span>
+            )}
           </div>
           {webSrc ? (
             <iframe
