@@ -265,6 +265,26 @@ fn json_field(value: &Value, keys: &[&str], fallback: Value) -> Value {
         .unwrap_or(fallback)
 }
 
+fn metadata_summary(value: &Value, metadata_path: &Path) -> Value {
+    json!({
+        "metadataPath": metadata_path.to_string_lossy(),
+        "name": string_field(value, &["name"]),
+        "title": string_field(value, &["title"]),
+        "description": string_field(value, &["description", "summary", "excerpt"]),
+        "annotation": string_field(value, &["annotation"]),
+        "url": string_field(value, &["url", "website", "link", "sourceURL"]),
+        "website": string_field(value, &["website"]),
+        "link": string_field(value, &["link"]),
+        "sourceURL": string_field(value, &["sourceURL"]),
+        "author": string_field(value, &["author", "authorName", "userName", "displayName"]),
+        "handle": string_field(value, &["handle", "username", "screenName", "userHandle"]),
+        "text": string_field(value, &["tweetText", "tweet_text", "fullText", "full_text", "text", "content", "body"]),
+        "likes": string_field(value, &["likes", "likeCount", "like_count", "favoriteCount", "favorite_count"]),
+        "replies": string_field(value, &["replies", "replyCount", "reply_count", "conversationCount"]),
+        "folders": json_field(value, &["folders"], json!([])),
+    })
+}
+
 fn set_comment_text(value: &mut Value, index: usize, text: &str) -> Result<(), String> {
     let object = value
         .as_object_mut()
@@ -497,7 +517,7 @@ async fn aura_scan_eagle_library(path: String) -> Result<String, String> {
                 "comment": json_field(&metadata, &["comment"], json!(null)),
                 "annotations": json_field(&metadata, &["annotations", "annotationRegions"], json!([])),
                 "regions": json_field(&metadata, &["regions", "highlights", "markups"], json!([])),
-                "metadata": metadata.clone(),
+                "metadata": metadata_summary(&metadata, &metadata_path),
                 "metadataPath": metadata_path.to_string_lossy(),
                 "folders": folders,
                 "folder": folder,
