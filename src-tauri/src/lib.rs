@@ -1,11 +1,76 @@
 use tauri::{
-    webview::WebviewBuilder, AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl, Window,
+    webview::WebviewBuilder, AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State,
+    WebviewUrl, Window,
 };
 use tauri_plugin_opener::OpenerExt;
 use serde_json::{json, Value};
-use std::{collections::BTreeSet, env, fs, path::{Path, PathBuf}};
+use std::{
+    collections::BTreeSet,
+    env, fs,
+    path::{Path, PathBuf},
+    sync::{mpsc, Arc, Mutex},
+    time::{Duration, Instant},
+};
 
 const URL_PREVIEW_WEBVIEW: &str = "aura-url-preview";
+const EAGLE_LIBRARY_CHANGED_EVENT: &str = "aura:eagle-library-changed";
+const EAGLE_WATCH_DEBOUNCE: Duration = Duration::from_millis(750);
+const EAGLE_SELF_WRITE_SUPPRESSION: Duration = Duration::from_secs(3);
+
+#[derive(Default)]
+struct EagleLibraryWatch {
+    watcher: Option<notify::RecommendedWatcher>,
+    last_self_write: Option<Instant>,
+}
+
+type SharedEagleLibraryWatch = Arc<Mutex<EagleLibraryWatch>>;
+
+fn mark_eagle_self_write(state: &SharedEagleLibraryWatch) {
+    if let Ok(mut watch) = state.lock() {
+        watch.last_self_write = Some(Instant::now());
+    }
+}
+
+fn spawn_eagle_library_watch(
+    app: AppHandle,
+    state: SharedEagleLibraryWatch,
+    path: PathBuf,
+) -> Result<notify::RecommendedWatcher, String> {
+    let (tx, rx) = mpsc::channel::<()>();
+    let mut watcher = notify::recommended_watcher(move |result: Result<notify::Event, notify::Error>| {
+        if result.is_ok() {
+            let _ = tx.send(());
+        }
+    })
+    .map_err(|error| format!("Could not create library watcher: {error}"))?;
+    notify::Watcher::watch(&mut watcher, &path, notify::RecursiveMode::Recursive)
+        .map_err(|error| format!("Could not watch Eagle library: {error}"))?;
+
+    std::thread::spawn(move || {
+        while rx.recv().is_ok() {
+            loop {
+                match rx.recv_timeout(EAGLE_WATCH_DEBOUNCE) {
+                    Ok(()) => continue,
+                    Err(mpsc::RecvTimeoutError::Timeout) => break,
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+            }
+            let suppressed = state
+                .lock()
+                .map(|watch| {
+                    watch
+                        .last_self_write
+                        .is_some_and(|instant| instant.elapsed() < EAGLE_SELF_WRITE_SUPPRESSION)
+                })
+                .unwrap_or(false);
+            if !suppressed {
+                let _ = app.emit(EAGLE_LIBRARY_CHANGED_EVENT, ());
+            }
+        }
+    });
+
+    Ok(watcher)
+}
 
 #[tauri::command]
 async fn aura_show_url_webview(
@@ -619,7 +684,7 @@ async fn aura_find_eagle_library(library_name: String) -> Result<String, String>
 }
 
 #[tauri::command]
-async fn aura_update_eagle_comment(metadata_path: String, index: usize, text: String) -> Result<(), String> {
+async fn aura_update_eagle_comment(metadata_path: String, index: usize, text: String, state: State<'_, SharedEagleLibraryWatch>) -> Result<(), String> {
     let path = PathBuf::from(metadata_path);
     if path
         .file_name()
@@ -637,11 +702,12 @@ async fn aura_update_eagle_comment(metadata_path: String, index: usize, text: St
         .map_err(|error| format!("Could not serialize item metadata: {error}"))?;
     fs::write(&path, format!("{next}\n"))
         .map_err(|error| format!("Could not write item metadata: {error}"))?;
+    mark_eagle_self_write(state.inner());
     Ok(())
 }
 
 #[tauri::command]
-async fn aura_update_eagle_comment_done(metadata_path: String, index: usize, done: bool) -> Result<(), String> {
+async fn aura_update_eagle_comment_done(metadata_path: String, index: usize, done: bool, state: State<'_, SharedEagleLibraryWatch>) -> Result<(), String> {
     let path = PathBuf::from(metadata_path);
     if path
         .file_name()
@@ -659,6 +725,31 @@ async fn aura_update_eagle_comment_done(metadata_path: String, index: usize, don
         .map_err(|error| format!("Could not serialize item metadata: {error}"))?;
     fs::write(&path, format!("{next}\n"))
         .map_err(|error| format!("Could not write item metadata: {error}"))?;
+    mark_eagle_self_write(state.inner());
+    Ok(())
+}
+
+#[tauri::command]
+async fn aura_watch_eagle_library(
+    app: AppHandle,
+    state: State<'_, SharedEagleLibraryWatch>,
+    path: String,
+) -> Result<(), String> {
+    let library_path = resolve_eagle_library_path(&PathBuf::from(path.trim()))?;
+    let watcher = spawn_eagle_library_watch(app, state.inner().clone(), library_path)?;
+    let mut watch = state
+        .lock()
+        .map_err(|error| format!("Watcher state is unavailable: {error}"))?;
+    watch.watcher = Some(watcher);
+    Ok(())
+}
+
+#[tauri::command]
+async fn aura_unwatch_eagle_library(state: State<'_, SharedEagleLibraryWatch>) -> Result<(), String> {
+    let mut watch = state
+        .lock()
+        .map_err(|error| format!("Watcher state is unavailable: {error}"))?;
+    watch.watcher = None;
     Ok(())
 }
 
@@ -692,6 +783,7 @@ impl IfEmpty for String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(Arc::new(Mutex::new(EagleLibraryWatch::default())) as SharedEagleLibraryWatch)
         .invoke_handler(tauri::generate_handler![
             aura_show_url_webview,
             aura_move_url_webview,
@@ -702,6 +794,8 @@ pub fn run() {
             aura_update_eagle_comment,
             aura_update_eagle_comment_done,
             aura_find_eagle_library,
+            aura_watch_eagle_library,
+            aura_unwatch_eagle_library,
             aura_pick_eagle_library
         ])
         .run(tauri::generate_context!())
